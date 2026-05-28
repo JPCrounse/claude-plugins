@@ -1,6 +1,6 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "claude-plugins-jp",
+  "name": "jpcro-plugins",
   "description": "Personal Claude Code plugin marketplace by JPCro",
   "version": "1.0.0",
   "owner": {
@@ -14,7 +14,7 @@
       "name": "dev-orchestrator",
       "description": "Multi-phase development workflow orchestrator with persistent state management",
       "version": "0.1.0",
-      "source": "dev-orchestrator"
+      "source": "./plugins/dev-orchestrator"
     }
   ]
 }
