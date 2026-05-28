@@ -1,0 +1,9 @@
+{
+  "name": "dev-orchestrator",
+  "version": "0.1.0",
+  "description": "Multi-phase development workflow orchestrator. Breaks large stories into topics, collects guidance, generates roadmaps, and implements in phases with persistent cross-session state.",
+  "author": {
+    "name": "JPCro"
+  },
+  "keywords": ["workflow", "orchestration", "planning", "implementation", "roadmap"]
+}

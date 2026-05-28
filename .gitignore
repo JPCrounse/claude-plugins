@@ -1,0 +1,29 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (MCP servers, scripts)
+node_modules/
+dist/
+build/
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+secrets.json
+credentials.json
+
+# Claude local state
+.claude/settings.local.json
+
+# Logs
+*.log
+plugins/dev-orchestrator/orchestrate-workspace/
