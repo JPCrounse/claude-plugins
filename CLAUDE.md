@@ -1,6 +1,6 @@
 # claude-plugins-jp
 
-Personal Claude Code plugin marketplace.
+Personal Claude Code plugin marketplace. The repository directory is `claude-plugins-jp`; the marketplace's registered name (in `.claude-plugin/marketplace.json`) is `jpcrounse-plugins` — install via `claude plugin install <plugin>@jpcrounse-plugins`.
 
 ## Structure
 
@@ -19,8 +19,10 @@ plugins/<name>/
 ├── agents/                # Agent definitions (.md)
 ├── hooks/                 # Event hooks (hooks.json)
 ├── commands/              # Slash commands (.md, legacy)
+├── scripts/               # Shell scripts invoked by hooks or commands
 ├── .mcp.json              # MCP server config (optional)
-└── CLAUDE.md              # Plugin-level instructions (optional)
+├── README.md              # Human-facing plugin overview (optional, recommended)
+└── CLAUDE.md              # Plugin-level instructions for Claude (optional)
 ```
 
 ## Adding a plugin
@@ -50,20 +52,28 @@ plugins/<name>/
   "name": "plugin-name",
   "description": "Brief description",
   "version": "0.1.0",
-  "source": "plugin-name"
+  "source": "./plugins/plugin-name"
 }
 ```
+
+Both `"plugin-name"` and `"./plugins/plugin-name"` work because `pluginRoot` is set to `./plugins` in the marketplace metadata, but the explicit relative path is preferred for clarity and matches existing entries.
 
 ## Conventions
 
 - Plugin names: kebab-case
 - Versions: semver
 - Source paths in marketplace.json use `./plugins/<name>` format (relative to pluginRoot, so just `"<name>"` works)
+- Plugin READMEs: each plugin should have a human-readable `README.md` at its root for team-facing docs (workflow diagrams, mode tables, etc.). CLAUDE.md inside a plugin (optional) is for agent-facing instructions; README.md is for human readers. Don't duplicate content between them.
     
 ## Plugin development workflow
 
-- Use `/plugin-dev:create-plugin`, `/skill-creator`, `/plugin-dev:agent-development` skills for best-practice structure
+- Use these skills for best-practice structure:
+  - `plugin-dev:create-plugin` — guided end-to-end plugin scaffolding
+  - `plugin-dev:skill-development` — skill authoring (frontmatter, progressive disclosure)
+  - `plugin-dev:agent-development` — agent authoring (description, examples, frontmatter)
+  - `example-skills:skill-creator` — generic skill creation outside the plugin-dev workflow
 - Always validate after changes (see Validation section)
+- Test a plugin locally before registering it: `claude plugin install ./plugins/<name>` (from the repo root), or invoke its skills/agents directly in a session run from this directory.
 
 ## Style rules
 
