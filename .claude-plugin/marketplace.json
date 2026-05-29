@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "jpcro-plugins",
-  "description": "Personal Claude Code plugin marketplace by JPCro",
+  "name": "jpcrounse-plugins",
+  "description": "Personal Claude Code plugin marketplace by JPCrounse",
   "version": "1.0.0",
   "owner": {
     "name": "JPCro"
