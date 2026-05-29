@@ -147,8 +147,8 @@ For each topic without a `guidance.md` (in order):
 3. Agent returns summary of all roadmaps with phase/item/concurrent group/cluster counts
 
 After generation:
-- Run **Phase 3.5: Mode Selection** (below)
-- Update `manifest.json` `currentPhase` to `implementation` and persist the chosen `executionMode`
+- Update `manifest.json` `currentPhase` to `implementation`. Do this **before** Phase 3.5, so an interruption during mode selection resumes into the Phase 4 entry guard (which re-runs Phase 3.5) rather than resuming at `roadmap-generation` and regenerating the roadmap.
+- Run **Phase 3.5: Mode Selection** (below), which persists the chosen `executionMode`.
 - Proceed directly to Phase 4. Do not prompt for or attempt `/compact` (see Context Management section)
 
 ### Exit Criteria
@@ -330,13 +330,13 @@ After each phase (speed mode) or cluster (efficiency mode) returns:
      - Guidance items not addressed
    - User reviews and resolves each deviation (approve, justify, or request correction)
 
-3. **Stage 2 — Project Standards:**
+4. **Stage 2 — Project Standards:**
    - Agent scans for project-level guidelines (CLAUDE.md, linting configs, coding conventions)
    - Reviews implemented code against these standards
    - Produces standards compliance report
    - User approves or requests fixes
 
-4. **Stage 3 — Finalization:**
+5. **Stage 3 — Finalization:**
    - Agent offers documentation integration (README, API docs, ADRs, changelog)
    - Agent offers cleanup of `.dev-orchestrator/` (keep, archive, or remove)
    - manifest.json currentPhase set to `complete`
@@ -421,6 +421,30 @@ The outer agent could in principle be scoped per-topic, but a topic often contai
 
 ---
 
+## One-Shot Mode Cheat Sheet
+
+One-shot mode special-cases nearly every phase. This table consolidates the differences so callers do not need to reassemble them from the per-phase sections above.
+
+| Aspect | Supervised (`speed` / `efficiency` / `deferred`) | One-shot |
+|---|---|---|
+| Phase 1.5 setting | `executionMode: "deferred"`, `acceptanceMode: "deferred"` | `executionMode: "one-shot"`, `acceptanceMode: "deferred"` (locked) |
+| Phase 2 collection mode | User-chosen (`interactive` default, or `batch`) | Auto-set to `batch` — no user prompt |
+| Phase 3.5 | Runs when `executionMode = "deferred"` to pick `speed` vs `efficiency` | Skipped — `one-shot` already final |
+| Phase 4 delegation | Speed: phase-implementer per phase. Efficiency: cluster-implementer per multi-phase cluster, phase-implementer for singletons. | Balanced: cluster-implementer per multi-phase cluster (like efficiency), phase-implementer for singletons. Inner phase-implementers parallelize `[concurrent]` groups (like speed). |
+| Phase 4 user signal | Per-phase handoff summaries + acceptance prompts | One-line status line at each phase/cluster start/end — the only user-visible signal |
+| Phase 4 acceptance | Per-phase or deferred (4.5) review | None mid-flight; deferred to Phase 5 Stage 0 |
+| Blocking deviation handling | Immediate per-item acceptance review, then continue | Append `[WORKFLOW ABORTED]` to `one-shot-log.md`, update `currentPhase` to `final-review`, stop |
+| Phase 4.5 | Runs when `acceptanceMode: "deferred"` | Skipped — Phase 5 handles acceptance |
+| Phase 5 | Stage 1 (compliance) → Stage 2 (standards) → Stage 3 (finalize) | Stage 0 (per-item acceptance walkthrough from working tree) → Stage 1 → Stage 2 → Stage 3 |
+| State files written | `manifest.json`, per-topic `guidance.md`/`roadmap.md`/`status.md`, optional `status-overview.md` | `manifest.json`, per-topic `guidance.md`/`roadmap.md`, root `one-shot-log.md`. **No `status.md`, no `status-overview.md`.** |
+| `PreCompact` hook target | Append `[COMPACTION]` to each topic's `status.md` session log | Append `[COMPACTION]` to `one-shot-log.md` |
+| Resumption | Full — re-invoke skill, reads `manifest.json` and resumes | **Not supported.** Mid-workflow failure requires starting over (optionally in a supervised mode after revising inputs). |
+| Session detection options offered | Continue / Status report / Skip / Archive-and-restart | Proceed to Phase 5 (if at `final-review`) / Status report / Archive-and-restart — no "Continue" or "Skip" |
+
+When debugging or reviewing a one-shot workflow, the authoritative artifacts are `one-shot-log.md` (event sequence) and the working tree (item-level state). No `status.md` exists.
+
+---
+
 ## Contract-Affecting Deviations
 
 When the phase-implementer deviates from guidance.md, the deviation is classified as either non-blocking (deferred to acceptance review like any other deviation) or **contract-affecting** (blocking — pauses Phase 4 in supervised modes, aborts the workflow in one-shot mode).
@@ -456,7 +480,8 @@ If a roadmap item lacks an `Affects:` line entirely (typically because the user 
 When the orchestrate skill detects an existing `.dev-orchestrator/manifest.json`:
 
 1. Read `manifest.json` to determine `currentPhase` and `executionMode`.
-2. Branch on `executionMode`:
+2. **If `executionMode` is absent** — the workflow was interrupted between Phase 1 and Phase 1.5, before autonomy was chosen. No status files exist yet. Skip the status summary and resume at Phase 1.5 (Autonomy Selection); the rest of this protocol does not apply.
+3. Branch on `executionMode`:
 
    **Supervised modes (`speed`, `efficiency`, `deferred`):**
    - Read `status-overview.md` (or single topic `status.md`) for progress.
@@ -477,8 +502,8 @@ When the orchestrate skill detects an existing `.dev-orchestrator/manifest.json`
      - **Archive and start over** — Rename `.dev-orchestrator/` to `.dev-orchestrator.archived-YYYY-MM-DD/` and begin a fresh workflow (optionally in a supervised mode this time)
    - Do not offer "Continue" or "Skip to next phase" — they are not meaningful in one-shot since no per-phase checkpoint exists.
 
-3. Append a new session entry to `manifest.json` sessions array.
-4. Resume the appropriate phase (supervised) or surface the one-shot final-review/abort.
+4. Append a new session entry to `manifest.json` sessions array.
+5. Resume the appropriate phase (supervised) or surface the one-shot final-review/abort.
 
 ---
 

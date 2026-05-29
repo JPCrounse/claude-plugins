@@ -116,20 +116,24 @@ Last updated: 2026-05-28T14:30:00Z
 | Topic | Status | Current Phase | Progress | Blocked |
 |-------|--------|---------------|----------|---------|
 | Data Models | done | -- | 4/4 done | No |
-| API Endpoints | started | Phase 2: Endpoints | 2/6 done | No |
+| API Endpoints | started | Phase 2: Endpoints | 5/12 done | No |
 
 ## Detail
 
 ### Data Models
-- [x] Phase 1: Schema Design (4/4 done)
+- [x] Phase 1: Schema Design (4/4 done) — cluster `schema-and-migrations`
 
 ### API Endpoints
-- [x] Phase 1: Core Endpoints (3/3 done)
-- [ ] Phase 2: Endpoints (2/6 done, 1 started)
-- [ ] Phase 3: Testing (0/3 todo)
+- [x] Phase 1: Core Endpoints (3/3 done) — cluster `auth-endpoints`
+- [ ] Phase 2: Endpoints (2/6 done, 1 started) — cluster `auth-endpoints`
+- [ ] Phase 3: Testing (0/3 todo) — cluster `testing`
 ```
 
 **Status values for topics:** `todo`, `started`, `acceptance`, `done`
+
+**Progress column** is the whole-topic roll-up: items `done` / total items across *all* phases in the topic — not the current phase alone. Above, API Endpoints shows `5/12 done` = 3 (Phase 1) + 2 (Phase 2) + 0 (Phase 3) of 12 total items. The `Current Phase` column tracks *where* work is; `Progress` tracks *how much* is done.
+
+**Detail lines** append each phase's cluster id (the `— cluster ...` suffix shown above) so efficiency-mode grouping stays visible at a glance. The roadmap-generator writes them; Phase 4 updaters preserve the suffix while refreshing counts.
 
 ---
 

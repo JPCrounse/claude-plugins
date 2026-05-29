@@ -1,259 +1,181 @@
 ---
 name: orchestrate
-description: This skill should be used when the user wants to "start a development workflow", "break down a large story", "plan and implement a feature", "orchestrate development phases", "continue where I left off", "pick up where we stopped", "where are we", "what's the status", "show me the progress", "create a development roadmap", "implement in phases", "break this into manageable pieces", "help me implement this large task", "implement this epic", "plan this sprint work", "resume the implementation", or needs structured multi-phase development with goal definition, context collection, roadmap generation, and phased implementation with cross-session state tracking. Use this skill for any large, multi-step development task that would benefit from structured decomposition — even if the user doesn't explicitly ask for "orchestration". Do NOT use for simple single-file fixes, code reviews, or code explanation requests.
+description: This skill should be used when the user wants to "start a development workflow", "break down a large story", "plan and implement a feature", "orchestrate development phases", "create a development roadmap", "implement in phases", "break this into manageable pieces", "help me implement this large task", "implement this epic", or "plan this sprint work". Also use when the user wants to resume an existing workflow with phrases like "continue where I left off", "pick up where we stopped", "where are we", "what's the status", "show me the progress", or "resume the implementation". Apply proactively only for genuinely large efforts — work spanning multiple subsystems, likely to exceed ~10 implementation steps, or expected to run across multiple sessions — even if the user doesn't explicitly ask for "orchestration". Do NOT use for simple single-file fixes, small tasks that fit comfortably in one session, code reviews, or code explanation requests.
 ---
 
 # Dev Orchestrator
 
 Manage large development stories through a structured 5-phase workflow: goal definition, context collection, roadmap generation, phased implementation, and final review. All progress persists to `.dev-orchestrator/` files for cross-session continuity.
 
+The protocols below are summaries. For full entry/exit criteria, error handling, the one-shot-mode cheat sheet, and handoff formats, read `references/workflow-phases.md`. For state file schemas, read `references/state-file-formats.md`.
+
 ## Session Detection
 
-Before starting any phase, check for existing state:
+Before starting any phase, check whether `.dev-orchestrator/manifest.json` exists in the current working directory.
 
-1. Check if `.dev-orchestrator/manifest.json` exists in the current working directory.
-2. **If found:** Read `manifest.json` and branch on `executionMode`:
-   - **Supervised modes (`speed`, `efficiency`, `deferred`):** Read `status-overview.md` (or the single topic's `status.md`). If status files do not yet exist (workflow was interrupted during Phase 1), skip status display and resume from the current phase recorded in manifest.json. Otherwise, present a brief status summary showing current phase, topic progress, and last activity timestamp. Offer options: continue, view detailed status (delegate to `status-reviewer`), skip to next phase, or archive and start over (rename existing `.dev-orchestrator/` to `.dev-orchestrator.archived-YYYY-MM-DD/`).
-   - **One-shot mode:** Read `.dev-orchestrator/one-shot-log.md` for forensic context. One-shot does not support resumption by design. Present a phase-level summary from log entries (`[PHASE END]` events, presence of `[WORKFLOW ABORTED]`). Offer only: proceed to Phase 5 (if `currentPhase` is `final-review`), view status report, or archive-and-restart (optionally in a supervised mode this time). Do not offer "continue" — there is no resumable mid-state.
-3. **If not found:** Begin Phase 1.
+- **Found:** Read it and resume per the Session Resumption Protocol in `references/workflow-phases.md`. Branch on `executionMode`:
+  - **Not yet set** (interrupted between Phase 1 and Phase 1.5, before autonomy was chosen): no status files exist yet — skip the status summary and resume at Phase 1.5.
+  - Supervised modes (`speed`, `efficiency`, `deferred`) support full resumption — offer Continue / Status report (delegate to `status-reviewer`) / Skip / Archive-and-restart (rename existing directory to `.dev-orchestrator.archived-YYYY-MM-DD/`).
+  - One-shot mode does not support resumption — offer only Proceed to Phase 5 (if `currentPhase` is `final-review`), Status report, or Archive-and-restart.
+- **Not found:** Begin Phase 1.
 
-When resuming, append a new session entry to `manifest.json` sessions array with the current ISO 8601 timestamp and current phase.
+When resuming, append a new entry to `manifest.json`'s `sessions` array with the current ISO 8601 timestamp and current phase.
 
 ## Phase 1: Goal Definition
 
-Run inline in the main conversation thread. No agent delegation.
+Run inline in the main thread. No agent delegation.
 
-1. Ask the user for the **main topic** — a name and brief description of what this development workflow will accomplish.
-2. Ask whether to **split into subtopics**. Recommend splitting when the story involves multiple distinct concerns or would produce 10+ checklist items. Either suggest subtopics based on natural boundaries in the description, or accept user-defined subtopics.
-3. Convert all topic names to kebab-case slugs. If no subtopics, the main topic slug becomes the single working directory (e.g., `.dev-orchestrator/user-auth-system/`).
-4. Create the directory structure:
-   ```
-   .dev-orchestrator/
-   ├── manifest.json
-   ├── <topic-slug>/
-   └── <another-topic-slug>/
-   ```
-5. Write `manifest.json` with the topic list, timestamps, and `currentPhase: "context-collection"`. See `references/state-file-formats.md` for the exact schema. Do not yet set `executionMode`, `acceptanceMode`, or `guidanceCollectionMode` — those are set in Phase 1.5 and Phase 2.
-6. Use TaskCreate to create a tracking task for each topic.
-7. Run **Phase 1.5: Autonomy Selection** (below) to set `executionMode` and `acceptanceMode`, then transition to Phase 2.
+1. Ask for the **main topic** — name and brief description.
+2. Ask whether to split into subtopics. Recommend splitting when the story spans multiple distinct concerns or would produce 10+ checklist items.
+3. Convert topic names to kebab-case slugs and create the directory structure under `.dev-orchestrator/`.
+4. Write `manifest.json` with topics, timestamps, and `currentPhase: "context-collection"`. Schema: `references/state-file-formats.md`. Do not yet set `executionMode`, `acceptanceMode`, or `guidanceCollectionMode` — those are set in Phase 1.5 and Phase 2.
+5. Use TaskCreate to create a tracking task per topic.
+6. Run Phase 1.5 to set `executionMode` and `acceptanceMode`, then transition to Phase 2.
 
 ## Phase 1.5: Autonomy Selection
 
-A short interactive step between goal definition and context collection. Run inline in the main conversation thread.
+Inline. One question: **supervised** or **one-shot**?
 
-Ask the user one question: **supervised** or **one-shot**?
+- **Supervised** — Workflow pauses at meaningful decision points (roadmap review, Phase 3.5 mode choice, acceptance review). Resumable. Speed-vs-efficiency choice is deferred to Phase 3.5.
+- **One-shot** — Fully autonomous end-to-end. No status files, no per-phase reviews, no resumption.
 
-- **Supervised** — The workflow pauses at meaningful decision points: roadmap review, mode-selection (Phase 3.5), and acceptance review (Phase 4.5 or per-phase). User stays in the loop. Speed-vs-efficiency execution mode is chosen later at Phase 3.5, when the roadmap exists to inform the choice.
-- **One-shot** — Fully autonomous. The workflow runs end-to-end without per-phase user interaction. Status files are not maintained; progress is logged to a single `one-shot-log.md`. Acceptance is deferred entirely to Phase 5. No resumption — a mid-workflow failure aborts and requires starting over.
+Persist to `manifest.json`:
+- Supervised → `executionMode: "deferred"`, `acceptanceMode: "deferred"`
+- One-shot → `executionMode: "one-shot"`, `acceptanceMode: "deferred"` (locked)
 
-Persist the choice to `manifest.json`:
-- Supervised → `executionMode: "deferred"` and `acceptanceMode: "deferred"`
-- One-shot → `executionMode: "one-shot"` and `acceptanceMode: "deferred"` (one-shot locks acceptanceMode to deferred)
-
-Default recommendation: supervised. One-shot is appropriate for well-scoped workflows where the user has high confidence the guidance is complete and unambiguous.
-
-Then transition to Phase 2.
+Default recommendation: supervised. One-shot is appropriate when guidance is known to be complete and unambiguous.
 
 ## Phase 2: Context Collection
 
-**Branch on `executionMode`** to determine collection-mode handling:
+Branch on `executionMode`:
 
-- **One-shot mode:** Skip the user prompt. Auto-set `guidanceCollectionMode: "batch"` (one-shot is non-interactive past Phase 1.5 — interactive Q&A would block the autonomy contract). The user is expected to have included all per-topic inputs alongside their initial workflow request. If guidance for any topic is unclear, the batch collector's "Open Questions" output will surface this — but no mid-Phase-2 user prompt happens.
-- **Supervised modes (`deferred`, `speed`, `efficiency`):** Ask the user which **collection mode** to use:
-  - **Interactive (default)** — Run guidance-collector serially per topic. Each collector asks follow-up questions and scans the codebase. Best when the user is discovering specs as they go.
-  - **Batch** — User pre-supplies all per-topic inputs upfront, then collectors run in parallel to structure them. No follow-up questions. Best when the user has all material pre-assembled and wants faster context collection.
+- **One-shot mode:** Skip the user prompt. Auto-set `guidanceCollectionMode: "batch"` — one-shot is non-interactive past Phase 1.5. Pre-supplied per-topic inputs are expected; if guidance is unclear, batch collectors surface this in the "Open Questions" section of `guidance.md` but no mid-Phase-2 prompt fires.
+- **Supervised modes:** Ask for the **collection mode**:
+  - **Interactive (default)** — `guidance-collector` runs serially per topic, asking follow-up questions and scanning the codebase. Best when specs are being discovered.
+  - **Batch** — Pre-supplied inputs from the user, collectors run in parallel to structure them. Best when material is pre-assembled.
 
-Persist the chosen value as `guidanceCollectionMode: "interactive"` or `"batch"` in `manifest.json`.
+Persist as `guidanceCollectionMode`.
 
-### Phase 2 — Interactive Mode
+**Interactive:** for each topic in order, delegate to `guidance-collector` with directive *"collectionMode: interactive"*. After return, confirm `guidance.md` exists and present the collection summary. Repeat.
 
-For each topic (or the single main topic if no subtopics), in order:
+**Batch:**
+1. Collect inputs serially in a tight loop. For each topic ask: *"Paste all guidance for topic <name>: documentation, specs, file references, examples. When done, just say 'next'."* Capture the response per topic.
+2. Spawn `guidance-collector` agents in parallel — one per topic in a single message, each receiving directive *"collectionMode: batch"* and the user's pre-supplied input for that topic.
+3. Wait for all returns. Present the aggregate summary (N topics, total sources, total open questions).
+4. Surface open questions grouped by topic. The user may resolve them now (triggers a second targeted invocation of `guidance-collector` for that topic) or defer to Phase 3 roadmap review.
 
-1. Delegate to the `guidance-collector` agent. Provide the topic name, description, directory path (`.dev-orchestrator/<topic-slug>/`), and the directive *"collectionMode: interactive"*.
-2. The agent interacts with the user to collect documentation, specifications, code references, and requirements. It writes a structured `guidance.md` file.
-3. After the agent returns, confirm the guidance.md was written and present the collection summary.
-4. Move to the next topic and repeat.
+Skipping a topic: write a minimal `guidance.md` noting that general best practices should be used.
 
-### Phase 2 — Batch Mode
+After all topics have `guidance.md`, set `currentPhase: "roadmap-generation"` and transition to Phase 3.
 
-1. **Collect inputs serially in a tight loop.** For each topic in order, ask the user: *"Paste all guidance for topic <name>: documentation, specs, file references, examples. When done, just say 'next'."* Capture the user's response per topic. The user attention cost is N short pastes — much cheaper than N interactive sessions.
-2. **Spawn collectors in parallel.** In a single message, invoke the `guidance-collector` agent once per topic. Each invocation receives the topic name, slug, directory path, the directive *"collectionMode: batch"*, and the user's pre-supplied input for that topic in the task brief.
-3. Wait for all collectors to return. Each writes its own `guidance.md`.
-4. Present the aggregate collection summary (N topics processed, total sources, total open questions across all topics).
-5. **Surface open questions for review.** If any topic's `guidance.md` has open questions, list them grouped by topic. The user can resolve them now (which triggers a second targeted invocation of guidance-collector for that topic) or defer them to Phase 3's roadmap review.
-
-### Both Modes — After Phase 2
-
-After all topics have `guidance.md`:
-- Update `manifest.json` to set `currentPhase: "roadmap-generation"`.
-- Transition to Phase 3.
-
-If the user wants to skip a topic: create a minimal guidance.md noting that general best practices should be used.
+Full process and error handling: `references/workflow-phases.md` Phase 2.
 
 ## Phase 3: Roadmap Generation
 
-Delegate to the `roadmap-generator` agent. Provide the path to `manifest.json`.
+Delegate to `roadmap-generator` with the `manifest.json` path. The agent:
 
-The agent:
-- Reads all `guidance.md` files as authoritative sources
-- Decomposes work into phases with checklist items organized into concurrency groups
-- Identifies **context clusters** within each topic — sets of phases that share enough context to benefit from a single outer agent in efficiency mode
-- Writes `roadmap.md` per topic with cluster annotations and a top-level cluster registry
-- Writes `status.md` per topic
-- Writes `status-overview.md` at the `.dev-orchestrator/` root (only if multiple topics)
-- Returns a summary with phase, item, concurrent group, and cluster counts
+- Reads each `guidance.md` as the authoritative source.
+- Decomposes work into phases with concurrency groups and per-item `Affects:` annotations.
+- Identifies **context clusters** per topic (sets of phases sharing enough context to benefit from a single outer agent in efficiency mode).
+- Writes `roadmap.md` per topic (with cluster registry), `status.md` per topic (skipped in one-shot), and `status-overview.md` at the root if multiple topics.
+- Returns a summary with phase, item, group, and cluster counts.
 
-After the agent returns:
-- Present the roadmap summary to the user, including the cluster breakdown (which clusters span multiple phases vs. which are singletons). **In one-shot mode**, present the summary but do not invite the user to modify it — one-shot is non-interactive past this point. The user can abort and restart in a supervised mode if the roadmap looks wrong.
-- (Supervised only) If the user wants to modify the roadmap before proceeding, instruct them to edit the relevant `roadmap.md` directly, then update `status.md` to match before continuing.
-- Run **Phase 3.5: Mode Selection** (below) **only if `executionMode` is currently `"deferred"`**. If `executionMode` is already `speed`, `efficiency`, or `one-shot`, skip Phase 3.5.
-- Update `manifest.json` to set `currentPhase: "implementation"`. This write must complete before Phase 4 begins.
-- Then proceed to Phase 4. Do not prompt for or attempt `/compact` — context management is handled by subagent delegation and Claude Code's automatic threshold-compaction (which fires the `PreCompact` hook that persists state to `.dev-orchestrator/` files). All progress is recoverable from state files in supervised modes (one-shot mode is non-recoverable by design).
+After return:
+- Present the roadmap summary including the cluster breakdown.
+- In one-shot mode: present but do not invite modification. To change the plan, the user must abort and restart in a supervised mode.
+- (Supervised) If the user wants to modify the roadmap: instruct them to edit `roadmap.md` directly, then sync `status.md` before continuing. If clusters are edited, ensure every phase still has exactly one `Cluster:` line and the top-of-file `## Clusters` registry remains consistent.
+- Set `currentPhase: "implementation"` (this write must complete before continuing). Set it *before* Phase 3.5 — that way an interruption during mode selection resumes into the Phase 4 entry guard, which re-runs Phase 3.5, instead of resuming at `roadmap-generation` and regenerating the roadmap.
+- Run Phase 3.5 **only if `executionMode == "deferred"`**. Otherwise skip it. Then proceed to Phase 4. Context management is automatic — see Token Optimization Protocol below.
 
 ## Phase 3.5: Mode Selection (supervised only)
 
-Runs only when `executionMode: "deferred"` (i.e., the user chose "supervised" at Phase 1.5 and the speed-vs-efficiency choice has not yet been made). Skip entirely in one-shot mode or if the user already selected speed or efficiency.
+Runs only when `executionMode == "deferred"`. Skipped in one-shot or if already `speed`/`efficiency`. Inline.
 
-A short interactive step between roadmap generation and implementation. Run inline in the main conversation thread — no agent delegation.
+Surface the cluster numbers from the roadmap-generator's summary (total phases, total clusters, multi-phase vs. singleton split). Ask the user to choose:
 
-Ask the user which **execution mode** to use for Phase 4. Present the choice with the concrete numbers from the roadmap-generator's summary (total phases, total clusters, multi-phase clusters vs. singletons). The two modes are:
+- **Speed mode** — One `phase-implementer` per phase; `[concurrent]` groups may spawn parallel inner sub-agents. Max wall-clock speed; shared context re-loaded per phase.
+- **Efficiency mode** — One `cluster-implementer` per **multi-phase** cluster only (singletons short-circuit to `phase-implementer`). Inner phase-implementers serialize `[concurrent]` groups. Max token savings.
 
-- **Speed mode** — One `phase-implementer` subagent per phase. Concurrency groups marked `[concurrent]` may spawn parallel inner sub-agents. Maximum wall-clock speed. Each phase re-loads shared context from disk, so total tokens consumed are higher. Best for: small workflows, time-sensitive work, workflows where phases don't share much context (mostly singleton clusters).
+Default recommendation: efficiency when at least one multi-phase cluster exists; speed otherwise.
 
-- **Efficiency mode** — One `cluster-implementer` subagent per **multi-phase** cluster only; singleton clusters short-circuit directly to `phase-implementer`. The cluster-implementer reads shared context once, then iterates the cluster's phases sequentially, delegating each to a nested `phase-implementer`. **Concurrency groups within phases are serialized** in this mode (no parallel inner sub-agents — max token savings). Best for: large workflows with multiple phases per cluster, token-sensitive work (e.g., long-running sessions where context budget matters).
-
-Persist the choice by rewriting `manifest.json`'s `executionMode` from `"deferred"` to `"speed"` or `"efficiency"`. Default recommendation: efficiency mode when the roadmap contains at least one multi-phase cluster; speed mode otherwise.
+Rewrite `manifest.json`'s `executionMode` from `"deferred"` to `"speed"` or `"efficiency"`.
 
 ## Phase 4: Implementation
 
-Read `manifest.json` for the persisted `executionMode` and `acceptanceMode`. If `executionMode` is `"deferred"`, Phase 3.5 was incorrectly skipped — go back and run it. Otherwise the delegation strategy branches on `executionMode`.
+Read `manifest.json` for `executionMode` and `acceptanceMode`. If `executionMode == "deferred"`, Phase 3.5 was incorrectly skipped — go back and run it.
 
-### Phase 4 — Speed Mode
+Find the next actionable unit and delegate:
 
-Iterate through phases and topics in order:
+- **Speed mode** — Next phase with non-`done` items → delegate to `phase-implementer` with topic slug, phase number, directory path.
+- **Efficiency mode** — Next cluster containing the lowest-numbered unfinished phase. **Singleton cluster** → delegate directly to `phase-implementer` (skip the wrapper — no setup-share benefit). **Multi-phase cluster** → delegate to `cluster-implementer` with topic slug, cluster ID, ordered phase list, and directory path.
+- **One-shot mode** — Same cluster-based dispatch as efficiency, but pass a one-shot directive to the inner agent (logs to `one-shot-log.md`, parallelizes `[concurrent]` groups). Emit a one-line status message at each phase/cluster start and end — the only user-visible signal mid-Phase-4. For the full per-aspect one-shot delta, see the One-Shot Mode Cheat Sheet in `references/workflow-phases.md`.
 
-1. Read `status-overview.md` (or single topic's `status.md`) to find the next actionable phase — the first topic with the first phase that has items not in `done` state.
-2. Delegate to the `phase-implementer` agent. Provide the topic slug, phase number, and directory path. The agent handles concurrency groups (spawning parallel sub-agents for `[concurrent]` groups when beneficial).
-3. The agent implements each checklist item, updates status.md, documents any deviations from guidance, and returns a structured handoff summary.
-4. After the agent returns, run the **Post-Phase Handling** section below.
-5. Repeat until all items across all topics reach `acceptance` or `done`.
+After each return:
+- **Supervised modes:** run Post-Phase Handling below.
+- **One-shot mode:** check the handoff's `blockingDeviation` flag. If `true`, append `[WORKFLOW ABORTED]` to `one-shot-log.md`, set `currentPhase: "final-review"`, stop. If `false`, continue to the next phase or cluster — no Post-Phase Handling, no acceptance review mid-flight.
 
-### Phase 4 — Efficiency Mode
+Repeat until all items reach `acceptance` or `done` (supervised), or all phases complete without abort (one-shot).
 
-Iterate through topics in order, processing each topic cluster-by-cluster:
-
-1. Read `status-overview.md` (or the single topic's `status.md`) and the topic's `roadmap.md` to find the next actionable cluster:
-   - Identify the first topic with items not in `done` state.
-   - Within that topic, find the first cluster whose phases contain items not in `done`. Cluster order follows the order the phases appear in roadmap.md (a cluster is "first" if it contains the lowest-numbered unfinished phase).
-2. Determine cluster size:
-   - **Singleton cluster (one phase):** Short-circuit. Delegate directly to the `phase-implementer` agent for that phase. There is no setup-sharing benefit, so skip the cluster-implementer wrapper.
-   - **Multi-phase cluster:** Delegate to the `cluster-implementer` agent. Provide the topic slug, cluster ID, the ordered list of phase numbers in the cluster, and the directory path.
-3. The chosen agent implements its scope. For the cluster-implementer, that means: read shared context once, then iterate the cluster's phases serially, delegating each phase to a nested `phase-implementer` (with `[concurrent]` groups serialized in this mode). For a direct phase-implementer call, that means a single phase as in speed mode.
-4. After the agent returns, run the **Post-Phase Handling** section below — applied per-phase as reported in the cluster-implementer's handoff (or once for a direct phase-implementer call).
-5. Repeat until all items across all topics reach `acceptance` or `done`.
-
-### Phase 4 — One-Shot Mode
-
-Fully autonomous. No user interaction between Phase 1.5 and Phase 5. State persistence is reduced (no status.md, no status-overview.md — only `one-shot-log.md`). Delegation is balanced: cluster like efficiency mode, but inner phase-implementer parallelizes `[concurrent]` groups.
-
-1. **Emit a single-line status message** to the user-visible thread when each phase or cluster starts and ends (e.g., "Starting topic `data-models` cluster `schema-and-migrations` (Phases 1–2)..." → "Finished cluster `schema-and-migrations`."). This is the only user-visible signal during Phase 4 — the user needs at least this much breadcrumbing to know the workflow is alive.
-2. Iterate through topics in order. For each topic, iterate through clusters in order:
-   - **Singleton cluster:** Delegate directly to `phase-implementer` with the directive *"one-shot mode — log to one-shot-log.md, parallelize concurrent groups"*.
-   - **Multi-phase cluster:** Delegate to `cluster-implementer` with the topic slug, cluster ID, ordered phase list, directory path, and a one-shot directive. The cluster-implementer passes the one-shot directive through to nested phase-implementers.
-3. After each return, check the handoff's `blockingDeviation` flag:
-   - `false`: continue to the next phase or cluster. **Do not run Post-Phase Handling.** No acceptance review happens in one-shot mode mid-flight.
-   - `true`: **abort the workflow.** Append a `[WORKFLOW ABORTED]` entry to `one-shot-log.md` summarizing the blocking deviation. Update `manifest.json` to `currentPhase: "final-review"` (Phase 5 will surface the abort to the user). Do not continue.
-4. If all phases complete without a blocking deviation, proceed to Phase 5 (skip Phase 4.5 entirely — one-shot's acceptance happens at Phase 5).
+Full per-mode procedures, concurrency-group behavior, and error handling: `references/workflow-phases.md` Phase 4.
 
 ### Post-Phase Handling (supervised modes only)
 
-After each phase (or cluster) returns in speed or efficiency mode:
+After each phase or cluster returns:
 
-1. Update `status-overview.md` with current progress if it exists.
-2. Present the handoff summary to the user. For a cluster-implementer return, this is the aggregated cluster handoff; surface each phase's contents individually.
-3. **Branch on `acceptanceMode`:**
-   - **`per-phase`:** Run the per-phase acceptance review now. Present items in `acceptance` state to the user for verification:
-     - List each acceptance item with a brief description of what was implemented
-     - For each item the user approves: update status.md to mark it as `(done)`
-     - For rejected items: mark back to `(todo)` with a note in the session log about what needs fixing
-     - If the user says "looks good" or "approve all": mark all acceptance items as done in a single update
-   - **`deferred`:** Skip the per-phase review — items stay in `acceptance` for Phase 4.5 batch review. **Exception:** if the handoff has `blockingDeviation: true`, run an immediate targeted review of the blocking item only:
-     - Present the blocking item with the deviation details and the affected downstream items from the `Affects:` list
-     - User accepts → mark `(done)`, remove the `[BLOCKING]` tag, log user-approval in the session log, continue to next phase
-     - User rejects → mark back to `(todo)`, log user feedback in session log, optionally update guidance.md, re-delegate the affected phase
-4. Proceed to the next phase or cluster. Do not prompt for or attempt `/compact` — the heavy work happened inside the delegated agent's own context, so the orchestrator thread only accumulates handoff summaries. If automatic compaction fires, the `PreCompact` hook persists state and the workflow resumes by re-reading `.dev-orchestrator/` files.
+1. Update `status-overview.md` if it exists.
+2. Present the handoff summary. For cluster returns, surface each phase's per-phase summary individually.
+3. Branch on `acceptanceMode`:
+   - **`per-phase`:** run acceptance review now. Mark approved items `(done)`, rejected items back to `(todo)` with feedback in the session log. Shortcut: "approve all" marks all acceptance items done.
+   - **`deferred`:** items stay in `acceptance` for Phase 4.5. **Exception — if `blockingDeviation: true`:** run an immediate targeted review of the blocking item only (with the affected downstream items from its `Affects:` list). Accept → mark `(done)`, remove `[BLOCKING]` tag, log approval, continue. Reject → mark back to `(todo)`, log feedback, optionally update `guidance.md`, re-delegate the affected phase.
+4. Proceed to the next phase or cluster.
 
-When all items in all topics reach `acceptance` or `done` (supervised modes):
-- If `acceptanceMode: "per-phase"`: every item should already be `done` (per-phase review covered each item). Proceed directly to Phase 5.
-- If `acceptanceMode: "deferred"`: items in `acceptance` state still need batch review. Update `manifest.json` to `currentPhase: "acceptance-review"` and proceed to Phase 4.5.
+When all items reach `acceptance` or `done`:
+- `per-phase`: all items are already `done` → proceed to Phase 5.
+- `deferred`: items still in `acceptance` need batch review → set `currentPhase: "acceptance-review"` and proceed to Phase 4.5.
 
-When all phases complete in one-shot mode (no blocking deviation):
-- Update `manifest.json` to set `currentPhase: "final-review"`.
-- Transition to Phase 5.
+When all phases complete in one-shot mode with no blocking deviation: set `currentPhase: "final-review"` and proceed to Phase 5.
 
 ## Phase 4.5: Batch Acceptance Review (deferred-acceptance supervised modes only)
 
-Runs only when `executionMode` is `speed` or `efficiency` AND `acceptanceMode` is `deferred` AND `currentPhase` is `acceptance-review`. Skipped entirely in one-shot mode (Phase 5 handles acceptance there) and in per-phase mode (every item was already reviewed during Phase 4).
+Runs only when `executionMode` is `speed` or `efficiency` AND `acceptanceMode: "deferred"` AND `currentPhase: "acceptance-review"`. Skipped in one-shot (Phase 5 handles acceptance there) and in per-phase (every item was already reviewed during Phase 4).
 
-1. Read every topic's `status.md` and collect items still in `acceptance` state.
-2. Group items hierarchically: by topic → by phase → by group.
-3. Present the entire backlog to the user as one structured review:
-   ```
-   ## Batch Acceptance Review
-
-   ### Topic: <topic name>
-   #### Phase 1: <name>
-   - Item 1.1: <description> — [implementation summary]
-   - Item 1.2: <description> — [implementation summary]
-   ...
-   ```
-   Highlight any items still tagged `[BLOCKING]` (these would normally have been resolved during Phase 4's targeted review — if any remain, that's a bug worth flagging).
-4. Accept user input per item or in bulk:
-   - **Per-item user choice:** for each item, the user accepts (mark `done`) or rejects.
-   - **Bulk shortcut:** the user can say "approve all" to mark all `acceptance` items as `done` in one update.
-   - **Reject all shortcut:** the user can say "reject all" to mark all `acceptance` items as `todo` (this re-enters Phase 4 for the whole backlog — rarely the right move but supported).
-5. For rejected items, the user decides per item: re-implement (mark `todo` and re-enter Phase 4 with a scoped filter), or override-accept with a written rationale (mark `done` with a `User accepted despite concerns: <reason>` note in the session log).
-6. After the review completes, all items are either `done` or `todo`:
-   - If any items are `todo`: re-enter Phase 4 with the orchestrator skipping completed phases and only re-delegating phases containing `todo` items.
-   - If all items are `done`: update `manifest.json` to `currentPhase: "final-review"` and transition to Phase 5.
+1. Collect every item still in `acceptance` from each topic's `status.md`. Group by topic → phase → group.
+2. Present the entire backlog as one structured review with per-item implementation summaries. Highlight any items still tagged `[BLOCKING]` — Phase 4's blocking-deviation handler should have resolved these, so any remaining are anomalies worth flagging.
+3. Accept per-item input or bulk shortcuts ("approve all" / "reject all").
+4. For rejections, prompt per item: re-implement (mark `(todo)`), or override-accept with a written rationale (mark `(done)` + `User accepted despite concerns: <reason>` note in the session log).
+5. After the review:
+   - Any items now `todo` → re-enter Phase 4, only re-delegating phases containing `todo` items.
+   - All items `done` → set `currentPhase: "final-review"` and proceed to Phase 5.
 
 ## Phase 5: Final Review
 
-Triggered when all supervised-mode checklist items are `done`, OR when one-shot mode completes successfully (no blocking deviation), OR when one-shot mode aborts on a blocking deviation (final-reviewer surfaces the abort).
+Triggered when supervised-mode items are all `done`, OR when one-shot completes successfully, OR when one-shot aborts on a blocking deviation (final-reviewer surfaces the abort to the user).
 
-1. Delegate to the `final-reviewer` agent. Provide the path to `manifest.json`.
-2. The agent conducts these stages:
+Delegate to `final-reviewer` with the `manifest.json` path. The agent reads `executionMode` and branches its input-set and stages accordingly:
 
-   **Stage 0 (one-shot mode only) — Acceptance Walkthrough:** Since one-shot deferred all acceptance to here, final-reviewer walks every roadmap item, presenting implementation evidence from the working tree. User accepts/rejects per item, grouped by topic and phase. See `agents/final-reviewer.md` for details.
+- **Stage 0 (one-shot only) — Acceptance Walkthrough.** Since one-shot deferred all acceptance to here, the agent walks every roadmap item across all topics, presenting implementation evidence from the working tree. User accepts or rejects per item, grouped by topic and phase.
+- **Stage 1 — Guidance Compliance.** Cross-references implementation against each topic's `guidance.md`. Produces a deviation report covering documented deviations (logged during implementation), `[BLOCKING DEVIATION]` events, undocumented deviations (more common in one-shot), and unaddressed guidance items. User resolves each.
+- **Stage 2 — Project Standards.** Reviews implemented code against CLAUDE.md, linting configs, conventions, test coverage requirements. User approves or requests fixes.
+- **Stage 3 — Finalization.** Offers documentation integration (README, API docs, ADRs, changelog) and `.dev-orchestrator/` cleanup (keep, archive, or remove).
 
-   **Stage 1 — Guidance Compliance:** Evaluates all implemented work against each topic's guidance.md. Produces a deviation report listing:
-   - Documented deviations (in supervised modes — logged by phase agents with reasoning and attribution)
-   - `[BLOCKING DEVIATION]` events from session logs or one-shot-log.md
-   - Undocumented deviations (found during review but not logged — expected to be more common in one-shot)
-   - Guidance items not addressed
-   The user reviews and approves or requests corrections for each deviation.
-
-   **Stage 2 — Project Standards:** After deviations are resolved, reviews implemented code against project-level standards (CLAUDE.md, linting configs, coding conventions, test coverage requirements). Produces a standards compliance report. The user approves or requests fixes.
-
-3. After both stages are approved:
-   - The agent offers **documentation integration** — updating project README, API docs, ADRs, changelog, or other relevant documentation with the work done in this workflow.
-   - The agent offers **cleanup** — the user chooses to keep, archive, or remove the `.dev-orchestrator/` directory.
-
-4. Update `manifest.json` to set `currentPhase: "complete"`.
-5. Present the final workflow completion summary.
+After both review stages are approved, set `currentPhase: "complete"` and present the final summary.
 
 ## Token Optimization Protocol
 
-Context management for large workflows relies on three mechanisms that operate without user intervention. **`/compact` is a user-only slash command — the assistant cannot invoke it and must not prompt the user to run it as part of the normal workflow.**
+Context management is automatic and requires no user intervention. **`/compact` is a user-only slash command — the assistant cannot invoke it and must not prompt the user to run it as part of the normal workflow.**
 
-- **Subagent delegation is the primary strategy.** Heavy work (file reads, edits, sub-sub-agents) happens inside `guidance-collector`, `roadmap-generator`, `phase-implementer`, `status-reviewer`, and `final-reviewer` — each runs in its own context. Only their structured handoff summaries return to the orchestrator thread, so the main conversation stays lean across phases. In **efficiency mode for multi-phase clusters** and **one-shot mode for multi-phase clusters**, an additional `cluster-implementer` agent wraps the phase-implementer in a second layer of isolation: it reads shared context once and then delegates each phase to a nested `phase-implementer`, so per-phase implementation residue (file contents, edit diffs) never accumulates in the outer cluster context either. Speed mode and singleton clusters skip the cluster-implementer wrapper.
-- **State lives in files, not conversation history.** All progress is persisted to `.dev-orchestrator/`. The file set depends on `executionMode` (see `references/state-file-formats.md` "Mode-Driven File Presence"). In supervised modes (`speed`, `efficiency`), the full state set (`manifest.json`, per-topic `guidance.md`/`roadmap.md`/`status.md`, optional `status-overview.md`) supports resumption from any point. In one-shot mode, the reduced state set (`manifest.json`, per-topic `guidance.md`/`roadmap.md`, root `one-shot-log.md`) supports forensics but **not resumption** — a one-shot workflow that fails must be restarted, optionally in a supervised mode.
-- **Automatic threshold-compaction is safe in supervised modes.** When Claude Code auto-compacts, the `PreCompact` hook (`hooks/hooks.json` → `scripts/pre-compact-save.sh`) bumps the manifest timestamp, increments the session's `compactions` counter, and appends a `[COMPACTION]` marker to each topic's `status.md` session log (or to `one-shot-log.md` in one-shot mode). After compaction in supervised modes, re-read `manifest.json` and status files to reconstruct state. After compaction in one-shot mode, the workflow may continue from the in-memory state of the currently-running agent (since one-shot has no checkpoints to resume from — the running agent re-reads `one-shot-log.md` to identify where it was).
-- **Agent handoff summaries** are designed to be self-contained: the next agent or session can resume from the handoff alone without re-reading all files. Each agent summarizes its progress so successors start with minimal context overhead.
-- **Contract-affecting deviations are caught early** via the `Affects:` annotations on every roadmap item. The phase-implementer compares each deviation against the affected-items list. Blocking deviations in supervised modes trigger an immediate per-item acceptance review; blocking deviations in one-shot mode abort the workflow (no recovery path, by design).
-- **The user may run `/compact` themselves at any time.** If they do, the same `PreCompact` hook fires and the workflow remains recoverable in supervised modes. The skill itself never asks for this.
+Three mechanisms keep the orchestrator thread lean:
+
+1. **Subagent delegation (primary).** Heavy work (file reads, edits, sub-sub-agents) runs inside `guidance-collector`, `roadmap-generator`, `phase-implementer`, `cluster-implementer`, `status-reviewer`, and `final-reviewer` — each in its own context window. Only structured handoff summaries return to the orchestrator thread.
+2. **Two-layer isolation in efficiency and one-shot multi-phase clusters.** `cluster-implementer` (outer) reads shared context once, then delegates each phase to a nested `phase-implementer` (inner). Per-phase implementation residue never accumulates in the outer cluster context. Speed mode and singleton clusters skip the wrapper.
+3. **File-based state.** All progress is persisted to `.dev-orchestrator/`. The skill never depends on conversation history. After auto-compaction in supervised modes, re-read state files and continue. In one-shot mode, the running agent re-reads `one-shot-log.md` to identify where it was.
+
+`PreCompact` hook behavior, per-mode file presence, and contract-affecting deviation detection via `Affects:`: see `references/workflow-phases.md` Context Management, `references/state-file-formats.md` Mode-Driven File Presence, and `references/workflow-phases.md` Contract-Affecting Deviations.
 
 ## Reference Files
 
-- For detailed phase transition rules, entry/exit criteria, error handling, and handoff summary format: read `references/workflow-phases.md`
-- For state file schemas and examples (manifest.json, status.md, guidance.md, roadmap.md, status-overview.md): read `references/state-file-formats.md`
+For detail beyond these summaries:
+
+- `references/workflow-phases.md` — Phase-by-phase entry/exit/error handling. Contains the **One-Shot Mode Cheat Sheet** (per-aspect supervised-vs-one-shot table), **Contract-Affecting Deviations** classification, **Session Resumption Protocol**, **Context Management**, **Concurrency Groups**, **Clusters**, and **Agent Handoff Summary Format** for both per-phase and cluster handoffs.
+- `references/state-file-formats.md` — Schemas and worked examples for `manifest.json`, `status-overview.md`, `guidance.md`, `roadmap.md`, `status.md`, `one-shot-log.md`. Contains the **Mode-Driven File Presence** table.
+- `examples/sample-workflow/` — Worked example of `.dev-orchestrator/` state after Phase 3 of a two-topic workflow (sample `manifest.json`, `guidance.md`, `roadmap.md`, `status.md`, `status-overview.md`).

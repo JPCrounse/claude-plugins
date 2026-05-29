@@ -37,7 +37,7 @@ plugins/<name>/
 
 | Plugin | Version | Description |
 |--------|---------|-------------|
-| dev-orchestrator | 0.3.0 | Multi-phase development workflow: goal definition, autonomy selection, context collection (interactive or batch), roadmap generation, phased implementation, batch acceptance review, final review. Speed/efficiency/one-shot execution modes with cluster-based delegation, contract-affecting deviation detection via Affects annotations, per-phase or deferred acceptance. 6 agents, 1 skill, PreCompact hook. |
+| dev-orchestrator | 0.4.0 | Multi-phase development workflow: goal definition, autonomy selection, context collection (interactive or batch), roadmap generation, phased implementation, batch acceptance review, final review. Speed/efficiency/one-shot execution modes with cluster-based delegation, contract-affecting deviation detection via Affects annotations, per-phase or deferred acceptance. 6 agents, 1 skill, PreCompact hook. |
 
 ## Validation
 
@@ -82,7 +82,9 @@ Both `"plugin-name"` and `"./plugins/plugin-name"` work because `pluginRoot` is 
 - Agent colors: blue=analysis, cyan=review, green=generation, yellow=input, magenta=orchestration, red=critical
 - Agent model options: `inherit` (recommended default), `sonnet`, `opus`, `haiku`
 - Agent effort options: `low`, `medium`, `high`, `xhigh`, `max` (model-dependent availability). Match to the agent's role: planning/judgment-heavy → `xhigh` or `max`; execution → `high`; read-only reporting → `low`.
+- Agent `maxTurns` (optional): caps the agent's internal tool-call iterations; set it for long-running or delegating agents (this repo: `phase-implementer` 50, `cluster-implementer` 100) and omit it for short or read-only ones.
 - Tools: apply principle of least privilege per agent role
+- Agent `disallowedTools` (optional): a denylist subtracted from the granted (or inherited) `tools`; use it when blocking a few tools reads cleaner than enumerating an allowlist, but keep the `tools` allowlist as the primary least-privilege lever.
 
 ## Versioning policy
 

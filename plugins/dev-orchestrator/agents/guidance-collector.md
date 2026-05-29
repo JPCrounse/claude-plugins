@@ -125,7 +125,7 @@ Sources: <count>
 _Collection metadata: <N> sources, <M> open questions pending_
 ```
 
-7. **Confirmation:** (Interactive mode only.) After writing guidance.md, present a brief summary of what was collected and ask the user to confirm accuracy before finalizing. In batch mode, skip this step — return the Collection Summary directly.
+**Confirmation (interactive mode only):** After writing guidance.md, present a brief summary of what was collected and ask the user to confirm accuracy before finalizing. In batch mode, skip this step — return the Collection Summary directly.
 
 **If guidance.md already exists:** Read it first. Append new context to the appropriate sections rather than overwriting. Update the source count and timestamp.
 

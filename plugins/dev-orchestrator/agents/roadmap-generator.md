@@ -1,7 +1,7 @@
 ---
 name: roadmap-generator
 description: |
-  Use this agent when generating development roadmaps and checklists from collected guidance during Phase 3 of the dev-orchestrator workflow. Reads guidance.md files and produces structured roadmap.md, status.md, and status-overview.md files. Examples:
+  Use this agent when generating development roadmaps and checklists from collected guidance during Phase 3 of the dev-orchestrator workflow. Reads guidance.md files and produces a structured roadmap.md per topic (plus status.md and status-overview.md in supervised modes; skipped in one-shot). Examples:
 
   <example>
   Context: Phase 2 context collection is complete for all topics
@@ -205,14 +205,14 @@ If `executionMode` is `speed`, `efficiency`, or `deferred`, write all files as n
 
    | Topic | Status | Current Phase | Progress | Blocked |
    |-------|--------|---------------|----------|---------|
-   | <Topic 1> | todo | Phase 1: <Name> | 0/<N> done | No |
-   | <Topic 2> | todo | Phase 1: <Name> | 0/<M> done | No |
+   | <Topic 1> | todo | Phase 1: <Name> | 0/<topic total> done | No |
+   | <Topic 2> | todo | Phase 1: <Name> | 0/<topic total> done | No |
 
    ## Detail
 
    ### <Topic 1>
-   - [ ] Phase 1: <Name> (0/<N> todo)
-   - [ ] Phase 2: <Name> (0/<M> todo)
+   - [ ] Phase 1: <Name> (0/<N> todo) — cluster `<cluster-id>`
+   - [ ] Phase 2: <Name> (0/<M> todo) — cluster `<cluster-id>`
    ...
    ```
 

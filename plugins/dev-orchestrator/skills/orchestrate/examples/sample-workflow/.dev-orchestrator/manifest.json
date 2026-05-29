@@ -1,0 +1,34 @@
+{
+  "version": "1.0",
+  "created": "2026-05-28T10:00:00Z",
+  "updated": "2026-05-28T11:45:00Z",
+  "mainTopic": {
+    "name": "User Authentication System",
+    "slug": "user-authentication-system",
+    "description": "Implement complete user authentication with OAuth2 and session management"
+  },
+  "subtopics": [
+    {
+      "name": "Data Models",
+      "slug": "data-models",
+      "description": "User, session, and refresh-token database schemas"
+    },
+    {
+      "name": "API Endpoints",
+      "slug": "api-endpoints",
+      "description": "REST endpoints for signup, login, refresh, and logout flows"
+    }
+  ],
+  "currentPhase": "implementation",
+  "executionMode": "efficiency",
+  "acceptanceMode": "deferred",
+  "guidanceCollectionMode": "interactive",
+  "sessions": [
+    {
+      "started": "2026-05-28T10:00:00Z",
+      "lastActive": "2026-05-28T11:45:00Z",
+      "phase": "implementation",
+      "compactions": 0
+    }
+  ]
+}
