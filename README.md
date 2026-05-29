@@ -17,7 +17,7 @@ The marketplace's registered name is `jpcrounse-plugins` (see `.claude-plugin/ma
 
 | Plugin | Version | Description |
 |---|---|---|
-| [dev-orchestrator](plugins/dev-orchestrator/README.md) | 0.3.0 | Five-phase development workflow with cross-session state. Supervised or one-shot autonomy; speed or efficiency execution; per-phase or deferred acceptance; interactive or batch guidance collection. Contract-affecting deviation detection via per-item `Affects:` annotations. |
+| [dev-orchestrator](plugins/dev-orchestrator/README.md) | 0.4.0 | Multi-phase development workflow with cross-session state. Supervised or one-shot autonomy; speed or efficiency execution; per-phase or deferred acceptance; interactive or batch guidance collection. Contract-affecting deviation detection via per-item `Affects:` annotations. |
 
 See each plugin's own `README.md` (linked above) for usage details.
 

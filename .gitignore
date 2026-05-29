@@ -26,4 +26,4 @@ credentials.json
 
 # Logs
 *.log
-plugins/dev-orchestrator/orchestrate-workspace/
+plugins/*/*-workspace/

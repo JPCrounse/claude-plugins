@@ -62,6 +62,7 @@ Both `"plugin-name"` and `"./plugins/plugin-name"` work because `pluginRoot` is 
 
 - Plugin names: kebab-case
 - Versions: semver
+- A plugin's version is duplicated in four hand-maintained places — keep them in sync on every bump: the plugin's `plugin.json`, its `marketplace.json` entry, the "Current plugins" table here, and the root `README.md` "Available plugins" table. (A plugin's own `README.md` should avoid hardcoding its version to reduce drift.)
 - Source paths in marketplace.json use `./plugins/<name>` format (relative to pluginRoot, so just `"<name>"` works)
 - Plugin READMEs: each plugin should have a human-readable `README.md` at its root for team-facing docs (workflow diagrams, mode tables, etc.). CLAUDE.md inside a plugin (optional) is for agent-facing instructions; README.md is for human readers. Don't duplicate content between them.
     
@@ -95,7 +96,7 @@ Both `"plugin-name"` and `"./plugins/plugin-name"` work because `pluginRoot` is 
 ## Gotchas
 
 - PreCompact IS a valid hook event despite some validators not recognizing it
-- `*-workspace/` directories under plugins are gitignored eval/test artifacts from skill-creator runs
+- `*-workspace/` directories under any plugin are gitignored (`plugins/*/*-workspace/`) — runtime/eval artifacts (e.g. `orchestrate-workspace/` from the orchestrate skill, eval dirs from skill-creator runs)
 
 ## Environment notes
 
