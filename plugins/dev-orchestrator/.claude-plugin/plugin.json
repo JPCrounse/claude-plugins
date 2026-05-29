@@ -1,7 +1,7 @@
 {
   "name": "dev-orchestrator",
-  "version": "0.1.0",
-  "description": "Multi-phase development workflow orchestrator. Breaks large stories into topics, collects guidance, generates roadmaps, and implements in phases with persistent cross-session state.",
+  "version": "0.3.0",
+  "description": "Multi-phase development workflow orchestrator with persistent cross-session state. Supervised modes (speed, efficiency with cluster-based delegation) and one-shot autonomous mode. Batch or interactive guidance collection. Deferred or per-phase acceptance review with contract-affecting deviation detection via roadmap Affects annotations.",
   "author": {
     "name": "JPCro"
   },

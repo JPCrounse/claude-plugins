@@ -35,7 +35,7 @@ plugins/<name>/
 
 | Plugin | Version | Description |
 |--------|---------|-------------|
-| dev-orchestrator | 0.1.0 | 5-phase development workflow: goal definition, context collection, roadmap generation, phased implementation, final review. 5 agents, 1 skill, PreCompact hook. |
+| dev-orchestrator | 0.3.0 | Multi-phase development workflow: goal definition, autonomy selection, context collection (interactive or batch), roadmap generation, phased implementation, batch acceptance review, final review. Speed/efficiency/one-shot execution modes with cluster-based delegation, contract-affecting deviation detection via Affects annotations, per-phase or deferred acceptance. 6 agents, 1 skill, PreCompact hook. |
 
 ## Validation
 
@@ -71,7 +71,14 @@ plugins/<name>/
 - Agents: description starts with "Use this agent when...", includes 2-4 `<example>` blocks, system prompt uses second person
 - Agent colors: blue=analysis, cyan=review, green=generation, yellow=input, magenta=orchestration, red=critical
 - Agent model options: `inherit` (recommended default), `sonnet`, `opus`, `haiku`
+- Agent effort options: `low`, `medium`, `high`, `xhigh`, `max` (model-dependent availability). Match to the agent's role: planning/judgment-heavy → `xhigh` or `max`; execution → `high`; read-only reporting → `low`.
 - Tools: apply principle of least privilege per agent role
+
+## Versioning policy
+
+- **Major version 0 plugins are pre-release**: only the author has used them. While `version` in `plugin.json` and `marketplace.json` is still `0.x.y`, do NOT write legacy notes, backwards-compatibility shims, "treat absent field as X for older workflows", schema-version changelog narration, or migration guides. Drop or remove such language on sight — the plugin's authoritative spec is its current state, not its history.
+- **Bumping to 1.0.0 is the shared/released milestone**: from `1.0.0` onward, legacy docs and backwards-compat become relevant (other users may have state files from prior versions). Schema-evolution notes, "absent = legacy default" handling, and migration guides start being written at the `1.0.0` boundary.
+- **Prompt the user about the version bump after edits**: when a working session modifies a skill, agent, or schema in a plugin whose current `version` major is `0`, after the edits are complete ask the user explicitly: *"Should these changes bump <plugin> to v1.0.0 (released/shared milestone), or stay on 0.x?"* Frame the question by listing what changed. Do not auto-bump to 1.0.0 without asking. Routine 0.x → 0.(x+1).0 minor bumps remain a judgment call inside the session and do not require this prompt.
 
 ## Gotchas
 

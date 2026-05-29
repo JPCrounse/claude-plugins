@@ -12,8 +12,8 @@
   "plugins": [
     {
       "name": "dev-orchestrator",
-      "description": "Multi-phase development workflow orchestrator with persistent state management",
-      "version": "0.1.0",
+      "description": "Multi-phase development workflow orchestrator with persistent state management. Speed, efficiency, and one-shot autonomous execution modes.",
+      "version": "0.3.0",
       "source": "./plugins/dev-orchestrator"
     }
   ]
