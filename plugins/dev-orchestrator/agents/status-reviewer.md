@@ -49,7 +49,7 @@ The state files present depend on `executionMode`:
 
 **Analysis Process:**
 
-1. **Read Manifest:** Parse `.dev-orchestrator/manifest.json` for topic list, `executionMode`, `acceptanceMode`, and `currentPhase`. Branch the rest of the analysis on `executionMode`.
+1. **Read Manifest:** Parse `.dev-orchestrator/manifest.json` for topic list, `executionMode`, `acceptanceMode`, `currentPhase`, and the `metrics` object (`agentInvocations`, `subAgentSpawns`, `phasesImplemented`, `clustersProcessed`) plus per-session `compactions`. Branch the rest of the analysis on `executionMode`.
 
 2. **Scan State Files (mode-specific):**
 
@@ -90,6 +90,7 @@ The state files present depend on `executionMode`:
 **Acceptance mode:** <per-phase | deferred | not applicable (one-shot)>
 **Last activity:** <timestamp from most recent log entry>
 **Blocking issues:** <count of [BLOCKING] items or [BLOCKING DEVIATION] entries; "none" if clean>
+**Cost proxy:** <agentInvocations> agent invocations, <subAgentSpawns> sub-agent spawns, <phasesImplemented> phases / <clustersProcessed> clusters done, <total compactions> compactions (no token meter is available — these are proxies)
 
 ### Overall Progress
 <done>/<total> items complete (<percentage>%)

@@ -100,11 +100,13 @@ One-shot workflows do **not** support resumption — by design, they trade check
 
 ## Token-efficiency design
 
-Three layered mechanisms keep the orchestrator thread lean:
+Five mechanisms keep the orchestrator thread lean and the run measurable:
 
-1. **Subagent delegation** — heavy work (file reads, edits, sub-sub-agents) runs in dedicated agents with their own context windows. Only structured handoff summaries return to the orchestrator.
-2. **Two-layer isolation in efficiency / one-shot multi-phase clusters** — `cluster-implementer` reads shared context once and delegates per-phase work to nested `phase-implementer` sub-agents. Per-phase implementation residue never accumulates in the outer cluster's context.
-3. **File-based state** — every agent and every session reconstructs context from disk. Conversation history is never required.
+1. **Subagent delegation** — heavy work (file reads, edits, sub-sub-agents) runs in dedicated agents with their own context windows. Only structured handoff summaries (targeted at ~1–2K tokens) return to the orchestrator.
+2. **Two-layer isolation in efficiency / one-shot multi-phase clusters** — `cluster-implementer` reads shared context once and delegates per-phase work to nested `phase-implementer` sub-agents. Per-phase implementation residue never accumulates in the outer cluster's context, and cluster handoffs digest settled phases rather than carrying every phase verbatim.
+3. **File-based state** — every agent and every session reconstructs context from disk; conversation history is never required. Resuming agents read only the tail of each session log, so per-invocation cost stays flat as the workflow grows.
+4. **Prompt-cache preservation** — agent prompts and brief templates are kept static (no timestamps or per-run IDs in the cacheable prefix), so repeatedly-invoked agents reuse their cached prompt instead of paying full input cost on every call.
+5. **Cost visibility** — the orchestrator maintains `metrics` proxy counters in `manifest.json` (agent invocations, sub-agent spawns, phases, clusters), surfaced by `status-reviewer` and `final-reviewer`. The speed-vs-efficiency choice at Phase 3.5 is framed with a concrete shared-context-reload-savings estimate, and one-shot mode enforces a soft agent-spawn ceiling as a runaway-cost backstop.
 
 ## Further reading
 

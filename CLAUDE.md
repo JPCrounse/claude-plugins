@@ -6,6 +6,7 @@ Personal Claude Code plugin marketplace. The repository directory is `claude-plu
 
 - `.claude-plugin/marketplace.json` — Marketplace registry listing all plugins
 - `plugins/` — Each plugin lives in its own subdirectory
+- `docs/` — Repo-level reference docs not tied to one plugin (e.g. `ai-token-optimization-guidance.md`, the token-cost rubric used when designing agents/skills)
 
 ## Plugin layout
 
@@ -37,13 +38,18 @@ plugins/<name>/
 
 | Plugin | Version | Description |
 |--------|---------|-------------|
-| dev-orchestrator | 0.4.0 | Multi-phase development workflow: goal definition, autonomy selection, context collection (interactive or batch), roadmap generation, phased implementation, batch acceptance review, final review. Speed/efficiency/one-shot execution modes with cluster-based delegation, contract-affecting deviation detection via Affects annotations, per-phase or deferred acceptance. 6 agents, 1 skill, PreCompact hook. |
+| dev-orchestrator | 0.5.0 | Multi-phase development workflow: goal definition, autonomy selection, context collection (interactive or batch), roadmap generation, phased implementation, batch acceptance review, final review. Speed/efficiency/one-shot execution modes with cluster-based delegation, contract-affecting deviation detection via Affects annotations, per-phase or deferred acceptance. Token-efficiency design: subagent isolation, prompt-cache preservation, bounded handoffs, and cost-metric observability (agent-spawn proxies + one-shot spawn ceiling). 6 agents, 1 skill, PreCompact hook. |
 
 ## Validation
 
 - Validate plugin structure: use `plugin-dev:plugin-validator` agent on the plugin directory
 - Review skill quality: use `plugin-dev:skill-reviewer` agent on any SKILL.md
 - Validate hooks: check `hooks/hooks.json` matches Claude Code hook schema
+- Validate JSON parses (no test runner here) after editing `marketplace.json` or any `plugin.json`:
+  ```bash
+  node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" .claude-plugin/marketplace.json && echo OK
+  ```
+  (`jq empty <file>` works too when `jq` is available.)
 
 ## Marketplace plugin entry format
 
@@ -85,6 +91,7 @@ Both `"plugin-name"` and `"./plugins/plugin-name"` work because `pluginRoot` is 
 - Agent effort options: `low`, `medium`, `high`, `xhigh`, `max` (model-dependent availability). Match to the agent's role: planning/judgment-heavy → `xhigh` or `max`; execution → `high`; read-only reporting → `low`.
 - Agent `maxTurns` (optional): caps the agent's internal tool-call iterations; set it for long-running or delegating agents (this repo: `phase-implementer` 50, `cluster-implementer` 100) and omit it for short or read-only ones.
 - Tools: apply principle of least privilege per agent role
+- Token efficiency: keep agent system prompts and standard task-brief templates **static** (no timestamps, run IDs, or dynamically-built tool/context lists in the prefix) so repeated invocations hit the prompt cache; design handoffs to be compact (~1–2K tokens). Rationale: `docs/ai-token-optimization-guidance.md`.
 - Agent `disallowedTools` (optional): a denylist subtracted from the granted (or inherited) `tools`; use it when blocking a few tools reads cleaner than enumerating an allowlist, but keep the `tools` allowlist as the primary least-privilege lever.
 
 ## Versioning policy

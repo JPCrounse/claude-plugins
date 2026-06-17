@@ -2,6 +2,9 @@
 
 All state files are created under `.dev-orchestrator/` in the user's project working directory.
 
+## Contents
+`manifest.json` · `status-overview.md` · `guidance.md` · `roadmap.md` · `status.md` · `one-shot-log.md` · Mode-Driven File Presence · Naming Conventions
+
 ## Directory Structure
 
 ```
@@ -52,18 +55,26 @@ Central metadata file tracking the entire workflow.
   "executionMode": "efficiency",
   "acceptanceMode": "deferred",
   "guidanceCollectionMode": "interactive",
+  "metrics": {
+    "agentInvocations": 7,
+    "subAgentSpawns": 4,
+    "phasesImplemented": 3,
+    "clustersProcessed": 2
+  },
   "sessions": [
     {
       "started": "2026-05-28T10:00:00Z",
       "lastActive": "2026-05-28T11:30:00Z",
       "phase": "context-collection",
-      "compactions": 0
+      "compactions": 0,
+      "agentInvocations": 2
     },
     {
       "started": "2026-05-28T13:00:00Z",
       "lastActive": "2026-05-28T14:30:00Z",
       "phase": "implementation",
-      "compactions": 1
+      "compactions": 1,
+      "agentInvocations": 5
     }
   ]
 }
@@ -78,7 +89,8 @@ Central metadata file tracking the entire workflow.
 - `executionMode` — One of: `speed`, `efficiency`, `one-shot`, `deferred`. Determines Phase 4 delegation strategy and supervision level. `deferred` is a sentinel used between Phase 1.5 (where the user chose "supervised") and Phase 3.5 (where the user picks speed vs efficiency); Phase 3.5 rewrites it to `speed` or `efficiency` before Phase 4 begins.
 - `acceptanceMode` — One of: `per-phase`, `deferred`. `per-phase` triggers acceptance review after each phase. `deferred` defers all acceptance to Phase 4.5, except for blocking-deviation items which still pause Phase 4 for immediate review. Phase 1.5 sets `deferred` for new workflows; `per-phase` is reachable only by manually editing manifest.json. Locked to `deferred` when `executionMode: "one-shot"`. Workflow-level only — no per-topic override.
 - `guidanceCollectionMode` — One of: `interactive`, `batch`. `interactive` (default for supervised modes) runs guidance-collector agents one topic at a time with user Q&A. `batch` collects all per-topic inputs upfront from the user, then spawns N collectors in parallel. Set at the start of Phase 2. One-shot mode auto-selects `batch` (no user prompt).
-- `sessions` — Append-only log of session starts, with compaction count per session
+- `metrics` — Workflow-level consumption proxies maintained by the orchestrator. The harness exposes no token meter to the skill, so these counts stand in for cost. `agentInvocations`: total top-level agent delegations across the workflow. `subAgentSpawns`: nested sub-agents reported by implementer handoffs. `phasesImplemented` / `clustersProcessed`: units of work completed. Initialized to zero at Phase 1 and incremented as the workflow runs. Surfaced by `status-reviewer` on request and by `final-reviewer` at completion; the one-shot invocation ceiling (Phase 4) reads `agentInvocations`.
+- `sessions` — Append-only log of session starts. Each entry carries `compactions` (auto-compaction count this session) and `agentInvocations` (top-level delegations this session).
 
 When there are no subtopics, the main topic acts as the single topic. Use `mainTopic.slug` as the directory name.
 
@@ -363,11 +375,15 @@ Current phase: Phase 2
 
 **Session log rules:**
 - Each entry starts with ISO 8601 timestamp header
-- Append-only (never modify previous entries)
+- Append-only (never modify previous entries), with one exception: the `[DIGEST]` rollup below
 - Include: what was done, key decisions, relevant file paths
 - Compaction entries marked with `[COMPACTION]` suffix
 - Blocking-deviation entries marked with `[BLOCKING DEVIATION]` suffix and include the specified vs actual contract, the reason for the deviation, and the list of `Affects:` items now at risk
 - Keep entries concise — this log enables session resumption, not full audit
+
+**Bounded reads (token discipline):** Agents that resume work (`phase-implementer`, `cluster-implementer`) read the full Checklist section but only the **most recent 2–3 session-log entries** plus any unresolved `[BLOCKING DEVIATION]` entry — never the whole log. The complete log stays on disk for forensics, but injecting it wholesale into every agent's context makes per-invocation cost grow linearly with workflow length (the re-sent-context + context-rot tax). `status-reviewer` already follows this pattern.
+
+**Optional `[DIGEST]` rollup:** When a topic's session log exceeds ~15 entries, the orchestrator may collapse all but the last 5 into a single `### <ISO 8601 timestamp> [DIGEST]` entry that preserves key decisions, deviations (especially any unresolved blocking ones), and cumulative files-changed while dropping routine narration. This is the in-plugin application of the *compaction* lever to the state files themselves, and the sole permitted modification of prior entries.
 
 ---
 
@@ -416,6 +432,7 @@ Mode: one-shot (balanced delegation)
 - `[PHASE END]` — Inner phase-implementer completes successfully
 - `[CLUSTER PROGRESS]` — Cluster-implementer marks progress between cluster phases (only in efficiency-style cluster delegation, which one-shot also uses)
 - `[BLOCKING DEVIATION]` — A contract-affecting deviation was detected. In one-shot mode, this aborts the workflow.
+- `[BUDGET CEILING]` — The soft agent-spawn ceiling was reached before completion: total agents spawned (`agentInvocations + subAgentSpawns`) exceeded `max(20, 3 × total phases)`. One-shot aborts to Phase 5 — the runaway-cost backstop for unattended autonomous runs.
 - `[COMPACTION]` — Auto-compaction fired (appended by PreCompact hook in one-shot mode in lieu of the missing status.md)
 
 **Rules:**
