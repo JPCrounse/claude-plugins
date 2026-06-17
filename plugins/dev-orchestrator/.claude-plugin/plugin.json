@@ -1,7 +1,7 @@
 {
   "name": "dev-orchestrator",
-  "version": "0.4.0",
-  "description": "Multi-phase development workflow orchestrator with persistent cross-session state. Supervised modes (speed, efficiency with cluster-based delegation) and one-shot autonomous mode. Batch or interactive guidance collection. Deferred or per-phase acceptance review with contract-affecting deviation detection via roadmap Affects annotations.",
+  "version": "0.5.0",
+  "description": "Multi-phase development workflow orchestrator with persistent cross-session state. Supervised modes (speed, efficiency with cluster-based delegation) and one-shot autonomous mode. Batch or interactive guidance collection. Deferred or per-phase acceptance review with contract-affecting deviation detection via roadmap Affects annotations. Token-efficiency design with prompt-cache preservation, bounded handoffs, and cost-metric observability (agent-spawn proxies plus a one-shot spawn ceiling).",
   "author": {
     "name": "JPCro"
   },

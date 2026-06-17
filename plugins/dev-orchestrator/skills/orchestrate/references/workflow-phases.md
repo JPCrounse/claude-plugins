@@ -1,5 +1,13 @@
 # Workflow Phases — Detailed Protocol
 
+## Contents
+- **Phases 1–5** — entry/process/exit/error per phase (see the Phase Overview table below)
+- [Concurrency Groups](#concurrency-groups) · [Clusters](#clusters)
+- [One-Shot Mode Cheat Sheet](#one-shot-mode-cheat-sheet)
+- [Contract-Affecting Deviations](#contract-affecting-deviations)
+- [Session Resumption Protocol](#session-resumption-protocol)
+- [Context Management](#context-management) · [Agent Handoff Summary Format](#agent-handoff-summary-format)
+
 ## Phase Overview
 
 | Phase | Name | Mode | Agent | Exit Criteria |
@@ -167,8 +175,8 @@ After generation:
 A single decision point between roadmap generation and implementation. The orchestrator (not an agent) asks the user to choose between `speed` and `efficiency` execution modes for Phase 4, then persists the choice to `manifest.json`.
 
 ### Process
-1. Surface the cluster breakdown from the roadmap-generator's summary: total clusters, how many are multi-phase, how many are singletons.
-2. Explain the tradeoff:
+1. Surface the cluster breakdown from the roadmap-generator's summary: total clusters, how many are multi-phase, how many are singletons, and the **shared-context reloads avoided** estimate (Σ over multi-phase clusters of phases−1).
+2. Explain the tradeoff, framed with that number (if it is 0, say so — efficiency mode then offers no token benefit and speed is strictly better):
    - **Speed mode** — one `phase-implementer` per phase; `[concurrent]` groups may spawn parallel inner sub-agents; faster wall-clock, higher token cost (shared context re-read per phase).
    - **Efficiency mode** — one `cluster-implementer` per multi-phase cluster (singletons short-circuit to `phase-implementer`); inner phase-implementer sub-agents serialize `[concurrent]` groups for max token savings; slower wall-clock, lower token cost.
 3. Default recommendation: efficiency mode when at least one multi-phase cluster exists; speed mode otherwise.
@@ -228,7 +236,7 @@ A single decision point between roadmap generation and implementation. The orche
 4. The user-facing Post-Phase Handling (acceptance review, status updates) is applied per-phase from the cluster's aggregated handoff.
 
 ### Process — One-Shot Mode
-1. Emit a one-line status message to the user when each phase or cluster starts and ends. This is the only mid-Phase-4 user-visible signal.
+1. Emit a one-line status message to the user when each phase or cluster starts and ends. This is the only mid-Phase-4 user-visible signal. Before each delegation, increment `metrics.agentInvocations`; then check total agents spawned (`agentInvocations + subAgentSpawns`, the latter accumulated from prior phase handoffs) against the soft ceiling `max(20, 3 × total roadmap phases)`. If it is exceeded before all phases complete, append a `[BUDGET CEILING]` entry to `one-shot-log.md`, set `currentPhase: "final-review"`, and stop. This is the runaway-cost backstop — one-shot cannot pause for input, so it aborts and surfaces the ceiling at Phase 5.
 2. Iterate topics in order. For each topic, iterate clusters in order:
    - **Singleton cluster:** Delegate directly to `phase-implementer` with one-shot directive (*parallelize concurrent groups, log to `one-shot-log.md`*).
    - **Multi-phase cluster:** Delegate to `cluster-implementer` with one-shot directive (passes through to inner phase-implementers).
@@ -434,6 +442,7 @@ One-shot mode special-cases nearly every phase. This table consolidates the diff
 | Phase 4 user signal | Per-phase handoff summaries + acceptance prompts | One-line status line at each phase/cluster start/end — the only user-visible signal |
 | Phase 4 acceptance | Per-phase or deferred (4.5) review | None mid-flight; deferred to Phase 5 Stage 0 |
 | Blocking deviation handling | Immediate per-item acceptance review, then continue | Append `[WORKFLOW ABORTED]` to `one-shot-log.md`, update `currentPhase` to `final-review`, stop |
+| Cost backstop | None — the user supervises pacing | Soft ceiling on agents spawned (`invocations + sub-agent spawns`) = `max(20, 3 × total phases)`; on breach append `[BUDGET CEILING]`, route to Phase 5 |
 | Phase 4.5 | Runs when `acceptanceMode: "deferred"` | Skipped — Phase 5 handles acceptance |
 | Phase 5 | Stage 1 (compliance) → Stage 2 (standards) → Stage 3 (finalize) | Stage 0 (per-item acceptance walkthrough from working tree) → Stage 1 → Stage 2 → Stage 3 |
 | State files written | `manifest.json`, per-topic `guidance.md`/`roadmap.md`/`status.md`, optional `status-overview.md` | `manifest.json`, per-topic `guidance.md`/`roadmap.md`, root `one-shot-log.md`. **No `status.md`, no `status-overview.md`.** |
@@ -509,7 +518,7 @@ When the orchestrate skill detects an existing `.dev-orchestrator/manifest.json`
 
 ## Context Management
 
-`/compact` is a Claude Code slash command — only the user can invoke it. The assistant cannot execute it programmatically, and the orchestrate skill does not prompt the user to run it. Context stays manageable through three mechanisms:
+`/compact` is a Claude Code slash command — only the user can invoke it. The assistant cannot execute it programmatically, and the orchestrate skill does not prompt the user to run it. Context stays manageable — and the run stays measurable — through five mechanisms:
 
 ### 1. Subagent Delegation (primary)
 Each phase delegates heavy work to a dedicated subagent (`guidance-collector`, `roadmap-generator`, `phase-implementer`, `cluster-implementer`, `status-reviewer`, `final-reviewer`). These agents run in their own context windows — only the structured handoff summary returns to the orchestrator thread. Most token pressure never reaches the main conversation.
@@ -518,11 +527,13 @@ Each phase delegates heavy work to a dedicated subagent (`guidance-collector`, `
 
 ### 2. File-Based State (recovery)
 All workflow progress is persisted to `.dev-orchestrator/`:
-- `manifest.json` — current phase, session history, compaction counts
+- `manifest.json` — current phase, session history, compaction counts, and `metrics` cost proxies
 - `status.md` per topic — checklist progress and session log
 - `roadmap.md`, `guidance.md` per topic — authoritative plan and inputs
 
 The skill never depends on conversation history. Any session — fresh, resumed, or post-compaction — reconstructs state by reading these files.
+
+**Bounded reads.** Resuming agents read the full checklist but only the tail of the session log (recent entries + any unresolved blocking entry) — the whole append-only log is never injected wholesale, keeping per-invocation cost flat as the workflow grows. When a log exceeds ~15 entries it may be collapsed with a `[DIGEST]` rollup. See `references/state-file-formats.md` Bounded reads.
 
 ### 3. Automatic Compaction (fallback)
 When Claude Code auto-compacts at the context-window threshold, the `PreCompact` hook (`scripts/pre-compact-save.sh`) runs and:
@@ -531,6 +542,21 @@ When Claude Code auto-compacts at the context-window threshold, the `PreCompact`
 - Appends a `[COMPACTION]` marker to each topic's `status.md` session log
 
 After auto-compaction, the assistant re-reads `manifest.json` and the relevant status files to continue. The handoff summaries in the session log provide enough context to resume the in-flight phase.
+
+### 4. Prompt-Cache Preservation (maintainer guard)
+Prompt caching is the single highest-ROI token lever: a cached prefix costs ≈10% of fresh input, and an agentic workflow re-sends the same agent prompts dozens of times. The plugin captures this **only because its agent prompts are static**. To keep it:
+- Never inject dynamic content — timestamps, session/request IDs, dynamically-built tool or context lists — into an agent's system prompt or a standard task-brief template (the cacheable prefix).
+- Put per-invocation variables (topic, phase number, directory path, mode directive) in the task-brief suffix, after the stable prefix.
+- Frequently-invoked agents (`phase-implementer` above all) benefit most; keep their briefs lean and their prompts static.
+
+This is a guard against regression: the win is free today and stays free only if no one adds a "Today is `<date>`" line to a prompt prefix. (The classic anti-pattern turns a 90% cache discount into ~1%.)
+
+### 5. Cost Visibility & Measurement
+The harness exposes no token meter to the skill, so the orchestrator maintains proxy counters in `manifest.json` `metrics`: `agentInvocations`, `subAgentSpawns`, `phasesImplemented`, `clustersProcessed`. They are incremented during Phase 4, surfaced by `status-reviewer` on request, and reported by `final-reviewer` at completion. Two governance behaviors build on them:
+- **Phase 3.5 is framed with numbers** — the roadmap-generator's "shared-context reloads avoided" estimate turns the speed-vs-efficiency choice into a data-informed decision rather than a qualitative one.
+- **One-shot enforces a soft agent-spawn ceiling** — total agents spawned (`agentInvocations + subAgentSpawns`) capped at `max(20, 3 × total phases)` (Phase 4) — a runaway-cost backstop for unattended autonomous runs, which abort to Phase 5 with a `[BUDGET CEILING]` log entry if they blow past it.
+
+Measurement is paired with outcome verification (acceptance + final review): the workflow already tracks *value* (was the right thing built); these counters add the *cost* side, so the two can be weighed together rather than letting consumption run unmeasured.
 
 ### Agent Handoff Summaries
 Each agent's handoff summary is designed to serve double duty:
@@ -557,6 +583,7 @@ There are two handoff variants: a **per-phase** handoff (emitted by `phase-imple
 - **Items completed:** [count] (all in acceptance, pending user verification)
 - **Items already done:** [count]
 - **Concurrent groups processed:** [count], of which [count] were run in parallel (parallel count is always 0 in efficiency mode)
+- **Sub-agents spawned:** [count] (for `metrics.subAgentSpawns` rollup; 0 if none)
 - **Key decisions:**
   - [decision 1]
   - [decision 2]
@@ -573,7 +600,7 @@ There are two handoff variants: a **per-phase** handoff (emitted by `phase-imple
 
 ### Cluster Handoff (cluster-implementer)
 
-Emitted only by `cluster-implementer` after processing a multi-phase cluster in efficiency mode. Contains every nested phase-implementer's per-phase handoff verbatim, plus cluster-level aggregation:
+Emitted only by `cluster-implementer` after processing a multi-phase cluster in efficiency mode. Aggregates the nested phase-implementer handoffs plus cluster-level synthesis. **Aggregation is bounded, not verbatim-everything:** the in-flight phase and any phase carrying an unresolved blocking deviation are kept verbatim; phases that completed cleanly are compressed to their `Compact context:` line plus key decisions, deviations, and files-changed. This keeps the cluster handoff — which transits the long-lived orchestrator thread — from growing without bound as a cluster accumulates phases. Target each retained per-phase block at ~1–2K tokens.
 
 ```
 ## Cluster Handoff Summary
@@ -582,14 +609,15 @@ Emitted only by `cluster-implementer` after processing a multi-phase cluster in 
 - **Phases processed in this invocation:** [list]
 - **Phases skipped (already done):** [list, or "none"]
 - **Phases terminated early:** [list, or "none"]
-- **Per-Phase Summaries:**
+- **Per-Phase Summaries:** (verbatim for the in-flight/blocking phase; digested for cleanly-completed phases)
   ### Phase [N]: [Name]
-  [inner phase-implementer's Per-Phase Handoff verbatim]
+  [completed cleanly → Compact-context line + key decisions / deviations / files changed]
 
   ### Phase [N+1]: [Name]
-  [inner phase-implementer's Per-Phase Handoff verbatim]
+  [in-flight or blocking → inner phase-implementer's Per-Phase Handoff verbatim]
 
   ...
+- **Sub-agents spawned across cluster:** [count] (sum across inner phases; for `metrics.subAgentSpawns` rollup)
 - **Cluster-Level Decisions:** (decisions spanning multiple phases or requiring cluster-wide choices)
   - [decision 1]
 - **Cluster-Level Deviations:** (deviations affecting multiple phases)

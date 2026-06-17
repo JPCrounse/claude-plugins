@@ -228,11 +228,12 @@ If `executionMode` is `speed`, `efficiency`, or `deferred`, write all files as n
 - **Topics processed:** <count>
 - **Total phases:** <count across all topics>
 - **Total checklist items:** <count across all topics>
-- **Total clusters:** <count across all topics>
+- **Total clusters:** <count across all topics> (<count> multi-phase, <count> singleton)
+- **Efficiency-mode shared-context reloads avoided:** <N> — the sum over every multi-phase cluster of (phases in cluster − 1). This is the concrete token-saving estimate Phase 3.5 uses to frame the speed-vs-efficiency choice; `0` means efficiency mode offers no benefit over speed (every cluster is a singleton).
 - **Per topic:**
   - <Topic 1>: <N> phases, <M> items, <C> clusters (<list of cluster ids with phase membership>)
   - <Topic 2>: <N> phases, <M> items, <C> clusters (<list of cluster ids with phase membership>)
 - **Files written:** <list of all created files>
 ```
 
-The orchestrate skill uses the cluster breakdown to present the speed-vs-efficiency mode tradeoff with concrete numbers (number of multi-phase clusters that would benefit from efficiency mode vs. singletons that get no benefit).
+The orchestrate skill uses this breakdown — specifically the multi-phase/singleton split and the shared-context-reloads-avoided estimate — to present the speed-vs-efficiency tradeoff at Phase 3.5 with concrete numbers instead of a qualitative "saves tokens" claim.

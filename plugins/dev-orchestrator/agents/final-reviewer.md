@@ -73,12 +73,12 @@ If `executionMode: "one-shot"`, run this stage first. In supervised modes, skip 
 
 ### Stage 1: Guidance Compliance Review
 
-For each topic in the manifest:
+Process topics **one at a time** — read a topic's `guidance.md`, its `status.md`, and the relevant working-tree slices, produce its deviation report, then move on before loading the next topic. Do not pre-load every topic's state up front; on a multi-topic workflow that is the single largest context load in the run and the most exposed to context-rot. For each topic in the manifest:
 
 1. **Read guidance.md** to understand the original requirements, specifications, and constraints.
 
 2. **Read deviation sources:**
-   - **Supervised modes:** Read `status.md` session logs to find all documented deviations.
+   - **Supervised modes:** Scan `status.md` session logs for deviation and `[BLOCKING DEVIATION]` entries (grep the markers rather than ingesting the whole log) to find all documented deviations.
    - **One-shot mode:** Read `one-shot-log.md` for any `[BLOCKING DEVIATION]` entries. Non-blocking deviations were not logged during one-shot execution — they must be discovered by comparing the working tree against guidance.md.
 
    Extract for each documented deviation:
@@ -197,7 +197,7 @@ After user approval of both reviews:
    - **Archived** — renamed to `.dev-orchestrator.completed-YYYY-MM-DD/`
    - **Removed** — deleted entirely
 
-5. **Final summary:**
+5. **Final summary** (read the `metrics` object from `manifest.json` for the cost-proxy line):
 ```
 ## Workflow Complete
 
@@ -206,6 +206,7 @@ After user approval of both reviews:
 - **Total checklist items:** <count> done
 - **Deviations:** <count> documented, <count> undocumented (all resolved)
 - **Standards issues:** <count> found, <count> fixed
+- **Cost proxy (from manifest `metrics`):** <agentInvocations> agent invocations, <subAgentSpawns> sub-agent spawns, <phasesImplemented> phases across <clustersProcessed> clusters, <total compactions> compactions. No token meter is available to the workflow; these are consumption proxies to weigh against the outcome above (value per unit of work).
 - **Documentation updated:** <list or "none">
 - **State files:** <kept/archived/removed>
 

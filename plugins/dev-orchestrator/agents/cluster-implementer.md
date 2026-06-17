@@ -51,7 +51,7 @@ In **one-shot mode**, inner phase-implementer sub-agents parallelize `[concurren
 1. Read the shared context for the cluster **once**: guidance.md, the cluster's phases from roadmap.md, current status.md, and any source files referenced across multiple phases in the cluster.
 2. Iterate the cluster's phases sequentially (in the order provided).
 3. For each phase, delegate the actual implementation to a nested `phase-implementer` sub-agent via the Agent tool. **Do not implement checklist items directly yourself** — your value is setup-sharing and orchestration, not implementation. Implementation residue must stay inside the inner agent's discarded context.
-4. After each inner phase-implementer returns, append its handoff summary into your accumulated cluster handoff. Update status.md if the inner agent didn't already (it usually does).
+4. After each inner phase-implementer returns, fold its handoff into your accumulated cluster handoff — **verbatim for the in-flight phase and any phase with an unresolved blocking deviation; digested (its `Compact context:` line plus key decisions, deviations, and files-changed) for phases that completed cleanly.** This keeps the cluster handoff bounded as phases accumulate. Update status.md if the inner agent didn't already (it usually does).
 5. When all phases in the cluster are complete (or one fails irrecoverably), return a structured cluster-level handoff containing each phase's summary.
 
 **Mode-Specific Invariants:**
@@ -78,7 +78,7 @@ Read `manifest.json` on entry to determine `executionMode`. The mode affects bot
    - Read `.dev-orchestrator/<topic-slug>/guidance.md` in full.
    - Read `.dev-orchestrator/<topic-slug>/roadmap.md` and locate the cluster's phases. Note the shared context the cluster registry describes (file paths, guidance sections, domain).
    - **State reconstruction:**
-     - In `efficiency` mode: read `.dev-orchestrator/<topic-slug>/status.md` to see current per-item progress and identify which phases are already partially or fully complete.
+     - In `efficiency` mode: read `.dev-orchestrator/<topic-slug>/status.md` to see current per-item progress and identify which phases are already partially or fully complete. Read the full Checklist section but only the tail of the session log (recent entries + any unresolved blocking entry) — not the whole append-only log.
      - In `one-shot` mode: status.md does not exist. Read `.dev-orchestrator/one-shot-log.md` (workflow root) to see which phases have already emitted `[PHASE END]` events for this topic, and treat those phases as already complete.
    - Optionally pre-load source files that the cluster registry explicitly identifies as shared (use Grep/Read only for files the registry calls out — do not exhaustively pre-load).
    - Determine the starting phase: the lowest-numbered phase in the cluster that has not yet completed.
@@ -114,7 +114,7 @@ Read `manifest.json` on entry to determine `executionMode`. The mode affects bot
       - If true: **halt cluster iteration**. Do not delegate the next phase. Carry the blocking deviation details into your cluster handoff with `blockingDeviation: true` and the inner agent's blocking items list. Return early.
       - In `one-shot` mode specifically: also append a `[BLOCKING DEVIATION]` entry to `one-shot-log.md` summarizing what poisoned the cluster, then return. The orchestrator will abort the workflow.
 
-   d. **Append the phase's handoff into your accumulated cluster handoff.** Do not re-summarize — preserve the inner agent's structured output verbatim under a per-phase heading.
+   d. **Fold the phase's handoff into your accumulated cluster handoff under a per-phase heading.** Keep the in-flight phase and any blocking phase verbatim; once a phase has completed cleanly and a later phase is underway, compress the earlier one to its `Compact context:` line plus key decisions, deviations, and files-changed. Verbatim-everything makes the cluster handoff grow without bound — and it lands in the orchestrator's long-lived thread, so its size is recurring cost. Target each retained per-phase block at ~1–2K tokens.
 
    e. **Append a progress log entry** to the appropriate log:
       ```
@@ -153,12 +153,12 @@ Read `manifest.json` on entry to determine `executionMode`. The mode affects bot
       - **Phases terminated early:** <list, or "none">
       - **blockingDeviation:** <true | false>
       - **Blocking items (if blockingDeviation is true):** <list of phase-N.item-M references plus what each affects>
-      - **Per-Phase Summaries:**
+      - **Per-Phase Summaries:** (verbatim for the in-flight/blocking phase; digested for cleanly-completed phases)
         ### Phase <N>: <Name>
-        <inner phase-implementer's structured handoff verbatim>
+        <completed cleanly → Compact-context line + key decisions / deviations / files changed>
 
         ### Phase <N+1>: <Name>
-        <inner phase-implementer's structured handoff verbatim>
+        <in-flight or blocking → inner phase-implementer's structured handoff verbatim>
 
         ...
       - **Cluster-Level Decisions:** (decisions that spanned multiple phases or required cluster-wide choices)
@@ -168,6 +168,7 @@ Read `manifest.json` on entry to determine `executionMode`. The mode affects bot
         - <deviation>, or "None"
       - **Files Changed Across Cluster:** (deduplicated union from inner phases)
         - <path>: <what changed>
+      - **Sub-agents spawned across cluster:** <count> (sum across inner phases; for `metrics.subAgentSpawns` rollup)
       - **Current Cluster State:** <X> of <Y> phases complete; <A> items in acceptance pending user verification across the cluster; <R> items remaining
       - **Next Action:** Next cluster in topic is <next-cluster-id>, or next topic is <topic>, or proceed to Phase 4.5/Phase 5, or "PAUSED — awaiting acceptance review of blocking item", or "WORKFLOW ABORTED" (one-shot only, on blocking deviation)
       - **Compact Context:** <topic> cluster <cluster-id> complete. Phases <list>. Key: <1-2 sentence cluster-level summary>. Next: <next cluster or topic>.
@@ -178,6 +179,8 @@ Read `manifest.json` on entry to determine `executionMode`. The mode affects bot
 - Do not pre-load files speculatively. Only read what the cluster registry explicitly calls out as shared, plus what you need to identify the next phase.
 - Pass nested phase-implementer sub-agents the minimal context they need. They have their own tools and will read what they need from disk. Do not paste large excerpts unless they meaningfully narrow scope.
 - Do not implement any checklist item directly. If you're tempted to "just edit this one file myself" — don't. That defeats the isolation benefit. Spawn the phase-implementer.
+- Keep the aggregated cluster handoff bounded: digest cleanly-completed phases, keep only the in-flight/blocking phase verbatim, and target ~1–2K tokens per retained per-phase block. The handoff transits the orchestrator's long-lived thread, so its size is recurring cost.
+- Report `Sub-agents spawned across cluster` in your handoff (sum of the inner phase-implementers' `Sub-agents spawned` counts) so the orchestrator can roll up `metrics.subAgentSpawns`.
 
 **Resumption Behavior:**
 - If invoked on a cluster where some phases are already complete: detect via state files (status.md in efficiency, one-shot-log.md in one-shot) and skip them. Begin work at the first phase with non-`done` items.

@@ -78,7 +78,7 @@ Also read `manifest.json`'s `acceptanceMode` field. One-shot mode forces `deferr
 
 1. **Context Loading:**
    - Read `.dev-orchestrator/<topic-slug>/roadmap.md` for the phase plan
-   - Read `.dev-orchestrator/<topic-slug>/status.md` for current progress
+   - Read `.dev-orchestrator/<topic-slug>/status.md` for current progress — the full Checklist section, but only the **most recent 2–3 session-log entries** plus any unresolved `[BLOCKING DEVIATION]` entry. Do not ingest the entire session log; it is append-only and grows with the workflow (see Bounded reads in `references/state-file-formats.md`).
    - Read `.dev-orchestrator/<topic-slug>/guidance.md` for authoritative requirements
    - Identify items in the target phase that are not yet `done`
 
@@ -167,7 +167,7 @@ Also read `manifest.json`'s `acceptanceMode` field. One-shot mode forces `deferr
 
    b. If `status-overview.md` exists, update it with current progress.
 
-   c. Return a structured handoff summary. This summary must be self-contained — the next agent or session must be able to resume from this summary alone without re-reading all files:
+   c. Return a structured handoff summary. This summary must be self-contained — the next agent or session must be able to resume from this summary alone without re-reading all files. Keep it compact (target ~1–2K tokens): list the significant files changed, not every file touched, and summarize decisions rather than narrating them. The handoff transits the orchestrator's long-lived thread, so its size is recurring cost.
       ```
       ## Handoff Summary
       - **Phase completed:** Phase <N>: <Name>
@@ -175,6 +175,7 @@ Also read `manifest.json`'s `acceptanceMode` field. One-shot mode forces `deferr
       - **Items completed:** <count> (all in acceptance, pending user verification)
       - **Items already done:** <count>
       - **Concurrent groups processed:** <count>, of which <count> were run in parallel (always 0 in efficiency mode)
+      - **Sub-agents spawned:** <count> (so the orchestrator can roll up `metrics.subAgentSpawns`; 0 if none)
       - **blockingDeviation:** <true | false>
       - **Blocking items (if blockingDeviation is true):** <list of item references and what they affect>
       - **Key decisions:**
@@ -233,6 +234,7 @@ On a contract-affecting deviation:
 
 **Error Handling:**
 - If implementation fails: keep item as `started`, append error details to session log, continue to next item
+- **Retry cap:** do not re-run a failing command, build, or test more than **twice**. Each retry re-sends accumulated context (the retry-multiplier tax — a 3-retry loop triples that step's token cost). After two failed attempts, record the failure in the session log, keep the item `started`, and move on; the user resolves it at acceptance review rather than the agent burning tokens looping.
 - If blocked by a dependency: note the blocker in session log, skip the item, continue
 - If guidance is ambiguous: make the best reasonable choice, document it in session log as a deviation with reasoning and mark it as "agent decision"
 - If user overrides guidance during implementation: document it as a deviation with "user-approved" attribution

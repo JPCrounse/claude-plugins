@@ -23,12 +23,19 @@
   "executionMode": "efficiency",
   "acceptanceMode": "deferred",
   "guidanceCollectionMode": "interactive",
+  "metrics": {
+    "agentInvocations": 4,
+    "subAgentSpawns": 2,
+    "phasesImplemented": 1,
+    "clustersProcessed": 0
+  },
   "sessions": [
     {
       "started": "2026-05-28T10:00:00Z",
       "lastActive": "2026-05-28T11:45:00Z",
       "phase": "implementation",
-      "compactions": 0
+      "compactions": 0,
+      "agentInvocations": 4
     }
   ]
 }

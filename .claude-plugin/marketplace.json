@@ -12,8 +12,8 @@
   "plugins": [
     {
       "name": "dev-orchestrator",
-      "description": "Multi-phase development workflow orchestrator with persistent state management. Speed, efficiency, and one-shot autonomous execution modes.",
-      "version": "0.4.0",
+      "description": "Multi-phase development workflow orchestrator with persistent state management. Speed, efficiency, and one-shot autonomous execution modes. Token-efficiency design with cost-metric observability.",
+      "version": "0.5.0",
       "source": "./plugins/dev-orchestrator"
     }
   ]
