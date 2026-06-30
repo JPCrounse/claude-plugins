@@ -15,6 +15,12 @@
       "description": "Multi-phase development workflow orchestrator with persistent state management. Speed, efficiency, and one-shot autonomous execution modes. Token-efficiency design with cost-metric observability.",
       "version": "0.5.0",
       "source": "./plugins/dev-orchestrator"
+    },
+    {
+      "name": "rpi-bugfix",
+      "description": "Gated Research→Plan→Implement workflow taking a single bug from a Jira key to a verified PR. Thin orchestrator delegating diagnosis (debug-error/bugsnag-triage methodology) and PR steps (self-review/pr-ci-fixer); three hard human gates; per-phase pinned models; code-graph impact validation; resumable state. Requires the bugsnag-triage plugin.",
+      "version": "0.1.0",
+      "source": "./plugins/rpi-bugfix"
     }
   ]
 }

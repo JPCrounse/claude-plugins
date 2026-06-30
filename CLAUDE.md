@@ -39,6 +39,7 @@ plugins/<name>/
 | Plugin | Version | Description |
 |--------|---------|-------------|
 | dev-orchestrator | 0.5.0 | Multi-phase development workflow: goal definition, autonomy selection, context collection (interactive or batch), roadmap generation, phased implementation, batch acceptance review, final review. Speed/efficiency/one-shot execution modes with cluster-based delegation, contract-affecting deviation detection via Affects annotations, per-phase or deferred acceptance. Token-efficiency design: subagent isolation, prompt-cache preservation, bounded handoffs, and cost-metric observability (agent-spawn proxies + one-shot spawn ceiling). 6 agents, 1 skill, PreCompact hook. |
+| rpi-bugfix | 0.1.0 | Gated Research→Plan→Implement workflow taking a single bug from a Jira issue key to a verified PR. Thin orchestrator: delegates diagnosis (debug-error/bugsnag-triage methodology, bundled as a self-contained heuristics doc) and PR steps (self-review/pr-ci-fixer); three hard human gates (spec approval, reproduction confirmed, post-fix reproduction passes); per-phase pinned models (Opus research/validate/plan, Sonnet implement); code-graph impact validation feeding planning; resumable `.rpi-bugfix/<JIRA-KEY>/` state. Requires bugsnag-triage (Jira+Bugsnag MCP + shared config). 4 agents, 1 skill, PreCompact hook. |
 
 ## Validation
 
