@@ -69,6 +69,8 @@ You run **non-interactively**. The skill's main thread has already interviewed t
 - **Never** paste a raw Bugsnag event blob, full breadcrumb dump, or raw grep/Explore output into `spec.md` or your handoff. Distill to `file:line` + a one-line evidence statement. The verbatim payloads must die with your context, not travel to the orchestrator thread.
 - Bound your loops: do not re-run a failing search or fetch more than **twice**. If a lookup keeps failing, record it as an open question and move on rather than burning tokens retrying.
 
+**Intensity block (task-brief suffix).** The brief may carry an Intensity block (`high` default / `medium` / `low`) that caps investigative breadth: how many ranked candidate causes to keep (≈3–4 / 2 / top-1), whether to fan out to an `Explore` sub-agent or go straight to Grep, how deep to correlate release/git history, and the retry cap (the "twice" above tightens to once at `medium`/`low`). Honor those caps. Intensity trims breadth and latency **only** — never let a lower level weaken the evidence tie behind a candidate cause, the accuracy of the suspected `file:line`, or the requirement that Open Questions be empty. With no block present, work at full `high` breadth.
+
 **Return a bounded handoff (target ~1–2K tokens):**
 ```
 ## Research Handoff — <JIRA-KEY>

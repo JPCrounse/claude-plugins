@@ -19,5 +19,11 @@ The Jira/Bugsnag MCP tools in `bug-researcher`'s allowlist are provided by the *
 ## Gates are non-negotiable
 The three hard gates (spec approval, reproduction confirmed, post-fix reproduction passes) are the product's safety guarantee. Do not add a mode that skips them. G2 is waivable for heisenbugs (which forces G3 to be waived and the PR to be flagged unverified) — that is the only relaxation.
 
+## Rapid-iteration mode & intensity (invariants)
+- **Rapid mode is additive, never a gate-relaxation.** The per-phase feedback checkpoint fires *after* each phase's gate/handoff, never before — it cannot front-run G1/G2/G3. Do not let "rapid" become a fast-path that skips a gate.
+- **Rapid-mode feedback targets the skill, not the bug.** `session-feedback.md` collects notes for improving *this plugin's* source (SKILL.md/agents/references). "Implementing" feedback edits the plugin — not `spec.md`/`plan.md` (the gates already let the user edit those directly). If the working tree isn't the plugin repo, surface the list; do not edit blindly.
+- **Intensity trims breadth only.** `high`/`medium`/`low` scale candidate-cause count, Explore fan-out, correlation depth, and the retry cap — delivered as an Intensity block in the task-brief *suffix* (never the cacheable prefix). It must never lower fix correctness, the regression-test decision, the evidence standard, or any gate. Per-spawn effort override is **not** relied on: the agents' `model`/`effort` frontmatter stays pinned as the `high` baseline. If you add intensity levers, keep them breadth/latency-only.
+- **Rewind is not auto-git.** Rewinding through `implement` must warn about the prior fix's branch edits and let the user reset — never run destructive git automatically.
+
 ## Versioning
 Pre-release (`0.x`). Per the repo policy, write no legacy/back-compat/migration notes while major version is 0. The plugin's own README must not hardcode the version (the four synced version locations are in the root `CLAUDE.md`).

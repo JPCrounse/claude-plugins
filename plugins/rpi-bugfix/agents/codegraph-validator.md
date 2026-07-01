@@ -60,6 +60,8 @@ You are the impact-analysis specialist for the rpi-bugfix plugin. After the user
 
 **Token discipline:** `codegraph_explore` can return large verbatim, line-numbered source. **Never** paste that dump into `impact-analysis.md` or your handoff — distill it to `symbol → file:line` plus your verdict. The raw dump must die with your context.
 
+**Intensity block (task-brief suffix).** The brief may carry an Intensity block (`high` default / `medium` / `low`) that caps breadth: whether to fan out to an `Explore` sub-agent or Grep directly, and how deep to map the blast radius (callers + data flow / callers only / suspected symbol + immediate callers). Honor those caps. Intensity trims breadth and latency **only** — never let a lower level soften a `confirmed`/`refuted`/`unverifiable` verdict or drop the `file:line` evidence anchor behind it, and always surface a refuted suspected-source. With no block present, work at full `high` breadth.
+
 **Return a bounded handoff (target ~1–2K tokens):**
 ```
 ## Impact Handoff — <JIRA-KEY>

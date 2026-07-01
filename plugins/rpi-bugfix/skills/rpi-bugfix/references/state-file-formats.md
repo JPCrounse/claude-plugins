@@ -3,7 +3,7 @@
 All state lives under `.rpi-bugfix/<JIRA-KEY>/` in the project working directory — one directory per bug. The workflow is single-bug and supervised, so there is no central manifest across bugs; each bug's directory is self-describing.
 
 ## Contents
-`state.json` · `spec.md` · `impact-analysis.md` · `plan.md` · `session-notes.md` · Bounded reads · Agent handoff formats · Naming conventions
+`state.json` · `spec.md` · `impact-analysis.md` · `plan.md` · `session-notes.md` · `session-feedback.md` · Bounded reads · Agent handoff formats · Naming conventions
 
 ## Directory Structure
 
@@ -14,7 +14,8 @@ All state lives under `.rpi-bugfix/<JIRA-KEY>/` in the project working directory
     ├── spec.md                # Phase 1 output — approved problem definition (gate G1 artifact)
     ├── impact-analysis.md     # Phase 2 output — code-graph-validated blast radius
     ├── plan.md                # Phase 3 output — ordered fix plan
-    └── session-notes.md       # append-only running log + retrospective; PreCompact appends [COMPACTION]
+    ├── session-notes.md       # append-only running log + retrospective; PreCompact appends [COMPACTION]
+    └── session-feedback.md    # rapid-mode only — append-only skill-improvement feedback (see below)
 ```
 
 ---
@@ -34,10 +35,17 @@ Per-bug metadata, gate status, cost metrics, and session history.
   "created": "2026-06-30T09:00:00Z",
   "updated": "2026-06-30T11:20:00Z",
   "currentPhase": "implement",
+  "mode": "standard",
+  "intensity": "high",
   "gates": {
     "specApproved": true,
     "reproConfirmed": "confirmed",
     "postFixReproPassed": false
+  },
+  "feedback": {
+    "pending": 0,
+    "awaitingImplementation": false,
+    "resumePhase": null
   },
   "regressionTest": "required",
   "sessionModelWarning": "WARNED: session on Sonnet; research/plan agents pinned to Opus regardless.",
@@ -60,7 +68,10 @@ Per-bug metadata, gate status, cost metrics, and session history.
 - `branch` — `fix/<JIRA-KEY>-slug`, set at the start of Phase 4.
 - `created` / `updated` — ISO 8601 timestamps.
 - `currentPhase` — one of `research`, `impact`, `plan`, `implement`, `pr`, `complete`. Drives resumption.
+- `mode` — `standard` (default) | `rapid`. `rapid` enables the per-phase feedback checkpoint and the abort→implement→rewind loop; `standard` behaves exactly as the base workflow. Set at session start, changeable on resume.
+- `intensity` — `high` (default) | `medium` | `low`. Controls how much investigative breadth the delegated agents apply (candidate-cause count, Explore fan-out, correlation depth, retry cap); models stay pinned at every level. `high` == the base workflow. Never weakens correctness, the regression-test decision, evidence standard, or any gate — it trims breadth and latency only. See the Intensity mapping table in `workflow-phases.md`.
 - `gates` — the three hard gates: `specApproved` (bool), `reproConfirmed` (`pending` | `confirmed` | `waived`), `postFixReproPassed` (bool). A resumed workflow re-presents the first unsatisfied gate at or before `currentPhase`.
+- `feedback` — rapid-mode bookkeeping for `session-feedback.md`. `pending` (int): count of un-implemented feedback entries. `awaitingImplementation` (bool): set `true` when a session is aborted at a checkpoint to implement its feedback; Session Detection routes such a bug to implement-then-offer-rewind before any other work. `resumePhase` (`null` | a phase name): the phase to rewind to after the feedback is implemented, so the critiqued phase re-runs first. In `standard` mode this block stays at its defaults.
 - `regressionTest` — the planner's decision: `required` | `documented-no-harness` | `null` (before planning).
 - `sessionModelWarning` — the one-time model advisory note, or `null`.
 - `metrics` — cost proxies (the harness has no token meter). `agentInvocations`: top-level delegations. `subAgentSpawns`: nested sub-agents rolled up from handoffs.
@@ -179,6 +190,28 @@ Append-only running log across the whole workflow: gotchas during implementation
 ```
 
 **Bounded reads (token discipline):** a resuming agent or the main thread reads `state.json` plus only the **most recent 2–3 `session-notes.md` entries** (and any unresolved blocker) — never the whole log. The full log stays on disk for forensics; injecting it wholesale into every context makes per-invocation cost grow with workflow length.
+
+---
+
+## session-feedback.md
+
+**Rapid mode only.** Append-only log of **skill-improvement** feedback captured at the per-phase checkpoints — notes on how a phase behaved or how its output could be better. This is feedback about the *rpi-bugfix skill itself* (its SKILL.md / agents / references), not about the bug's artifacts (the hard gates already let the user edit `spec.md`/`plan.md` directly). "Implementing" an entry means editing the plugin source; the disposition then flips `pending` → `implemented`.
+
+```markdown
+# Session Feedback: NEXTHP-123  (rapid mode — feedback for improving the rpi-bugfix skill)
+
+### 2026-07-01T10:00:00Z — phase: plan — intensity: medium — disposition: pending
+Planner over-scoped: added a refactor step not tied to the root cause. The plan step should
+enforce "smallest change" harder and explicitly reject adjacent refactors.
+
+### 2026-07-01T10:40:00Z — phase: research — intensity: medium — disposition: implemented
+(edited bug-researcher: capped ranked candidate causes to the intensity, tightened the
+evidence-tie rule so every candidate cites a frame/breadcrumb)
+```
+
+**Entry fields:** ISO 8601 timestamp · `phase` (the phase being critiqued) · `intensity` (active at capture) · `disposition` (`pending` | `implemented`). An `implemented` entry carries a one-line note of what changed in the plugin source. `state.json.feedback.pending` mirrors the count of `pending` entries.
+
+**Where feedback is applied:** the plugin source. If the bug's working tree is a different repo than `claude-plugins-jp`, the main thread does not edit blindly — it surfaces the pending list and points at the plugin repo (see the deferred/abort paths in `workflow-phases.md`).
 
 ---
 

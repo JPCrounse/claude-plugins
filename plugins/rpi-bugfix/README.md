@@ -69,9 +69,18 @@ rpi-bugfix reuses `bugsnag-triage`'s repo config — create `.claude/bugsnag-tri
 
 If the config is missing, the workflow degrades: it asks you to confirm the project(s)/paths during the interview, detects the default branch, and asks for or skips the checks command. See `bugsnag-triage`'s own README for the full config schema.
 
+## Modes & intensity
+
+Two per-session settings; the defaults reproduce the base workflow exactly.
+
+- **Mode** — `standard` (default) or `rapid`. **Rapid-iteration mode** is for tightening *this skill* while you dogfood it: after every phase it asks whether you want to leave feedback on how that phase behaved. You can **bank** the feedback and keep going (it collects in `session-feedback.md` and is applied to the plugin source when the run completes), or **end the session now** to implement the feedback immediately — after which you can resume the same bug **rewound to the phase you critiqued**, so you see the effect of the change right away. Every hard gate stays in place; the feedback prompts are purely additive.
+- **Intensity** — `high` (default) / `medium` / `low`. It dials how much investigative breadth the agents apply (candidate-cause count, Explore fan-out, git/release correlation depth, retry cap). Models stay pinned at every level. `high` is today's behavior; `medium`/`low` trade thoroughness and latency for faster, cheaper loops. Intensity only trims breadth — it never weakens the fix's correctness, the regression-test decision, the evidence bar, or any gate.
+
+Set them at the start ("fix NEXTHP-123 in rapid mode at medium intensity") or change them on resume ("switch to rapid", "set intensity low"); both persist in `state.json`. You can also restart a bug from any phase in either mode ("restart NEXTHP-123 from the plan phase").
+
 ## State & resumption
 
-Everything persists to `.rpi-bugfix/<JIRA-KEY>/` (`state.json`, `spec.md`, `impact-analysis.md`, `plan.md`, `session-notes.md`). The workflow survives context compaction (a `PreCompact` hook marks the notes) and resumes across sessions — re-trigger with the Jira key and it picks up at the right phase and gate.
+Everything persists to `.rpi-bugfix/<JIRA-KEY>/` (`state.json`, `spec.md`, `impact-analysis.md`, `plan.md`, `session-notes.md`, and — in rapid mode — `session-feedback.md`). The workflow survives context compaction (a `PreCompact` hook marks the notes) and resumes across sessions — re-trigger with the Jira key and it picks up at the right phase and gate.
 
 ## Design notes
 

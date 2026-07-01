@@ -24,7 +24,7 @@ Before starting, look for existing state under `.rpi-bugfix/`.
 - If the user names a Jira key, check `.rpi-bugfix/<JIRA-KEY>/state.json`.
 - Otherwise list the bug directories under `.rpi-bugfix/` and ask which to resume (or whether to start a new one).
 
-**Found:** read `state.json`, summarize where it left off, append a new entry to its `sessions` array (ISO 8601 timestamp + current phase), and resume at `currentPhase` per the Session Resumption Protocol in `references/workflow-phases.md`. Respect gate state — a workflow paused at a gate resumes by re-presenting that gate.
+**Found:** read `state.json` (including `mode`, `intensity`, and the `feedback` block), summarize where it left off, and append a new entry to its `sessions` array (ISO 8601 timestamp + current phase). **First**, if `feedback.awaitingImplementation == true` — the previous session was aborted at a rapid-mode checkpoint to implement feedback — run the Abort→Implement→Rewind step in **Rapid-Iteration Mode** before any other work. Otherwise resume at `currentPhase` per the Session Resumption Protocol in `references/workflow-phases.md`. Respect gate state — a workflow paused at a gate resumes by re-presenting that gate.
 
 **Not found:** begin Phase 1.
 
@@ -32,12 +32,21 @@ Before starting, look for existing state under `.rpi-bugfix/`.
 
 The agents are pinned per phase (Opus for research/validation/planning, Sonnet for implementation), so quality is guaranteed regardless of the session model. The interactive interview, however, runs in this main thread — recommend the driving session be on Opus for it. If the session is not on Opus, note this once (e.g. "research agents are pinned to Opus; consider `/model opus` for the interview") and **proceed** — do not block. Record the note in `state.json.sessionModelWarning`.
 
+## Mode & Intensity
+
+Two orthogonal per-session settings, both recorded in `state.json` and re-confirmable on resume:
+
+- **Mode** — `standard` (default) or `rapid`. `standard` is the base workflow, unchanged. `rapid` adds a feedback checkpoint after every phase plus an abort→implement→rewind loop, for tightening the skill itself while dogfooding it — see **Rapid-Iteration Mode** below. It never skips or weakens a gate.
+- **Intensity** — `high` (default), `medium`, or `low`. It sets how much investigative breadth each delegated agent applies. `high` reproduces today's behavior; `medium`/`low` trade thoroughness and latency for faster, cheaper iterations. **Intensity never weakens the fix's correctness, the regression-test decision, the evidence standard, or any of the three gates** — it only trims investigative breadth. On every agent delegation, append the **Intensity block** for the active level to the task-brief *suffix* (the cacheable prefix stays static); its row-by-row contents are the Intensity mapping table in `references/workflow-phases.md`. At `high` the block is the current behavior, so it may be omitted.
+
+**Selection (new session, in Phase 1):** after seeding from Jira, ask for the mode and intensity — default `standard` + `high`, a no-op relative to the base flow — or accept them from trigger phrases ("rapid iteration mode", "low/medium/high intensity"). Persist both into `state.json` at creation. On resume, honor the stored values and accept changes ("switch to rapid", "set intensity medium").
+
 ## Phase 1: Research
 
 Run the interview **in the main thread** — agents cannot ask the user live follow-up questions, and this keeps the raw Jira/Bugsnag payloads out of the long-lived thread.
 
 1. **Seed.** Fetch the Jira issue (`jira_get_issue`) for its title, type, body, and links. Derive the slug for the branch name from the title.
-2. **Create state.** Create `.rpi-bugfix/<JIRA-KEY>/` and write `state.json` (schema in `references/state-file-formats.md`): `jiraKey`, `currentPhase: "research"`, gate statuses `pending`, zero-initialized `metrics`, the first `sessions` entry.
+2. **Create state.** Create `.rpi-bugfix/<JIRA-KEY>/` and write `state.json` (schema in `references/state-file-formats.md`): `jiraKey`, `currentPhase: "research"`, the selected `mode`/`intensity` (defaults `standard`/`high`), gate statuses `pending`, the `feedback` block at its defaults, zero-initialized `metrics`, the first `sessions` entry.
 3. **Interview.** Ask only non-obvious questions, informed by the issue body: exact reproduction steps, screenshots (capture as text), confirmation of the involved project(s) from the config, the Bugsnag error id/URL if any, relevant logs, and — for UI/visual bugs — a Figma link. If a Figma link is given, fetch the intended design context here (the main thread has full tool access) and carry it into the brief as text.
 4. **Delegate research.** Invoke `bug-researcher` with the assembled brief and the state-dir path. It fetches the Bugsnag error, locates the source, correlates git/release history, assesses test coverage, and writes `spec.md`. Increment `metrics.agentInvocations`.
 5. **Handle open questions.** If the handoff returns open questions, re-interview the user to resolve them and re-invoke `bug-researcher`. The spec's Open Questions section must be empty before the gate.
@@ -82,7 +91,19 @@ Ask the user to re-run the reproduction steps against the fix. **Passes** → se
 1. **Draft and confirm the PR.** Compose the title `fix(<JIRA-KEY>): <summary>` and a body that links the Jira issue and Bugsnag error, summarizes the fix, and flags "unverified by reproduction" if G2/G3 were waived. **Show the draft and get explicit confirmation before creating anything** — opening a PR is an outward-facing action.
 2. **Commit, push, open.** Commit on the `fix/<JIRA-KEY>-slug` branch with the `fix(<JIRA-KEY>): <summary>` message, push, and open the PR (`gh`).
 3. **CI.** If CI comes back red and the `pr-ci-fixer` skill is installed, invoke it (`Skill(pr-ci-fixer)`); otherwise surface the failing job for the user to address.
-4. **Retrospective (inline).** Append a closing summary to `session-notes.md` (the searchable per-bug index). For broader, reusable lessons — a non-obvious debugging journey, a class of bug worth remembering — **propose** Claude-memory entries and write them only on user confirmation. Set `currentPhase: "complete"` and offer to clean up `.rpi-bugfix/<JIRA-KEY>/` (keep, archive, or remove).
+4. **Retrospective (inline).** Append a closing summary to `session-notes.md` (the searchable per-bug index). For broader, reusable lessons — a non-obvious debugging journey, a class of bug worth remembering — **propose** Claude-memory entries and write them only on user confirmation. Set `currentPhase: "complete"` and offer to clean up `.rpi-bugfix/<JIRA-KEY>/` (keep, archive, or remove). In rapid mode, run the deferred-feedback step (below) **before** cleanup.
+
+## Rapid-Iteration Mode
+
+Active only when `state.json.mode == "rapid"`. It layers a **skill-improvement** feedback loop on top of the base workflow to tighten the skill itself while dogfooding it — every gate stays exactly as it is; nothing here skips or weakens G1/G2/G3. The feedback is about the *rpi-bugfix skill* (its SKILL.md/agents/references), **not** the bug's artifacts (the gates already let the user edit those directly). **The full protocol — exact prompts, state transitions, rewind mechanics, and the branch/PR caveats — lives in `references/workflow-phases.md`; the summary here is enough to drive it.**
+
+- **Per-phase feedback checkpoint.** After each phase finishes its work *and* its gate/handoff is processed — Research→G1, Impact, Plan→G2, Implement→(self-review + G3), PR→complete — and before advancing, ask whether the user wants to leave feedback on that phase. If they do, append a `pending` entry to `session-feedback.md` (timestamp · phase · intensity · the note), bump `feedback.pending`, then ask **Continue** (bank it and go on) or **End now** (stop to implement it).
+- **End now** sets `feedback.awaitingImplementation = true` and `feedback.resumePhase = <current phase>`, writes a `[FEEDBACK-ABORT]` marker to `session-notes.md`, and stops — Session Detection picks it up next time. In rapid mode, defer each gate's `currentPhase` advance until after the checkpoint, so an abort leaves `currentPhase` at the just-finished phase.
+- **Deferred (banked) path.** On reaching `complete` with pending feedback and no abort, surface the list and offer to implement it against the plugin source now; flip entries to `implemented`. The bug already shipped, so this improves *future* runs — no rewind.
+- **Abort→Implement→Rewind path.** On resume with `awaitingImplementation == true`: implement the pending feedback against the plugin source, then offer to **rewind** the bug to `resumePhase` and re-run it with the improved skill, so the effect is visible immediately.
+- **Rewind** (also a general "restart \<KEY\> from the \<phase\> phase" request in either mode): reset `currentPhase`, stale the artifacts of that phase onward, reset the gates at/after it, then re-run — mechanics and the no-auto-git / opened-PR caveats are in `references/workflow-phases.md`.
+
+**Feedback edits the plugin source, not this bug.** If the working tree is not the `claude-plugins-jp` plugin repo, do not edit blindly — surface the pending list and point at the plugin repo; optionally validate with the `plugin-dev` skills.
 
 ## Metrics
 
@@ -111,6 +132,6 @@ Context management is automatic. **`/compact` is a user-only command — never p
 
 ## Reference Files
 
-- `references/workflow-phases.md` — per-phase entry/exit/error handling, the Session Resumption Protocol, Context Management, and the full agent handoff formats.
-- `references/state-file-formats.md` — schemas and worked examples for `state.json`, `spec.md`, `impact-analysis.md`, `plan.md`, and `session-notes.md`, plus the bounded-reads rule.
+- `references/workflow-phases.md` — per-phase entry/exit/error handling, the Session Resumption Protocol, Context Management, the full agent handoff formats, and the rapid-iteration protocols (feedback checkpoint, abort→implement→rewind, intensity mapping table).
+- `references/state-file-formats.md` — schemas and worked examples for `state.json`, `spec.md`, `impact-analysis.md`, `plan.md`, `session-notes.md`, and `session-feedback.md`, plus the bounded-reads rule.
 - `references/diagnostic-heuristics.md` — **(agent-only; the orchestrator never reads it)** the self-contained root-cause playbook `bug-researcher` reads during Research: error-shape classification, source-location ladder, release correlation, triage heuristics.
