@@ -1,0 +1,9 @@
+{
+  "name": "rpi-bugfix",
+  "version": "0.3.0",
+  "description": "Gated Research→Plan→Implement workflow that takes a single bug from a Jira issue key to a verified pull request. Thin orchestrator: delegates diagnosis (debug-error/bugsnag-triage methodology) and PR steps (self-review/pr-ci-fixer). Three hard human gates (spec approval, reproduction confirmed, post-fix reproduction passes), per-phase pinned models (Opus research/plan, Sonnet implement), code-graph impact validation feeding planning, and cross-session resumable state under .rpi-bugfix/. Optional rapid-iteration mode (per-phase skill-improvement feedback loop with abort→implement→rewind) and a high/medium/low intensity dial (breadth-only, gates preserved). 4 agents, 1 skill, PreCompact hook.",
+  "author": {
+    "name": "JPCro"
+  },
+  "keywords": ["bug", "triage", "debugging", "jira", "bugsnag", "research", "planning", "implementation", "workflow", "pull-request"]
+}

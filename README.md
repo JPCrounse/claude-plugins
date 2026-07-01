@@ -18,6 +18,7 @@ The marketplace's registered name is `jpcrounse-plugins` (see `.claude-plugin/ma
 | Plugin | Version | Description |
 |---|---|---|
 | [dev-orchestrator](plugins/dev-orchestrator/README.md) | 0.5.0 | Multi-phase development workflow with cross-session state. Supervised or one-shot autonomy; speed or efficiency execution; per-phase or deferred acceptance; interactive or batch guidance collection. Contract-affecting deviation detection via per-item `Affects:` annotations. Token-efficiency design with prompt-cache preservation and cost-metric observability. |
+| [rpi-bugfix](plugins/rpi-bugfix/README.md) | 0.3.0 | Gated Research→Plan→Implement workflow taking a single bug from a Jira key to a verified PR. Thin orchestrator: delegates diagnosis (debug-error/bugsnag-triage) and PR steps (self-review/pr-ci-fixer); three hard human gates (spec approval, reproduction confirmed, post-fix reproduction passes); per-phase pinned models; code-graph impact validation; resumable state. Optional rapid-iteration mode (per-phase skill-improvement feedback loop with abort→implement→rewind) and a high/medium/low intensity dial. Requires the bugsnag-triage plugin. |
 
 See each plugin's own `README.md` (linked above) for usage details.
 

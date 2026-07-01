@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "jpcrounse-plugins",
   "description": "Personal Claude Code plugin marketplace by JPCrounse",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "owner": {
     "name": "JPCro"
   },
@@ -15,6 +15,12 @@
       "description": "Multi-phase development workflow orchestrator with persistent state management. Speed, efficiency, and one-shot autonomous execution modes. Token-efficiency design with cost-metric observability.",
       "version": "0.5.0",
       "source": "./plugins/dev-orchestrator"
+    },
+    {
+      "name": "rpi-bugfix",
+      "description": "Gated Research→Plan→Implement workflow taking a single bug from a Jira key to a verified PR. Thin orchestrator delegating diagnosis (debug-error/bugsnag-triage methodology) and PR steps (self-review/pr-ci-fixer); three hard human gates; per-phase pinned models; code-graph impact validation; resumable state. Optional rapid-iteration mode (per-phase skill-improvement feedback loop with abort→implement→rewind) and a high/medium/low intensity dial. Requires the bugsnag-triage plugin.",
+      "version": "0.3.0",
+      "source": "./plugins/rpi-bugfix"
     }
   ]
 }
